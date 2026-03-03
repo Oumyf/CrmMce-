@@ -38,7 +38,7 @@ const Login = () => {
       if (data.user) {
         toast.success("Content de vous revoir !");
         // Une fois connecté, on redirige vers le dashboard
-        navigate("/dashboard");
+        window.location.href = "/dashboard";
       }
     } catch (error: any) {
       toast.error(error.message || "Une erreur est survenue lors de la connexion");
