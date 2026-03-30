@@ -55,7 +55,8 @@ import {
   X,
   Download,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 
 interface EmployeeDocument {
@@ -157,7 +158,22 @@ const departments = ["Design", "Tech", "Marketing", "Ventes", "RH", "Finance"];
 const contractTypes = ["CDI", "CDD", "Stage", "Freelance"];
 
 const Recruitment = () => {
-  const [employees, setEmployees] = useState<Employee[]>(mockEmployees);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState(true);
+    // Charger les salariés depuis Supabase au montage
+    useEffect(() => {
+      const fetchEmployees = async () => {
+        setLoading(true);
+        const { data, error } = await supabase.from("recruitment").select("*").order("created_at", { ascending: false });
+        if (error) {
+          toast.error("Erreur lors du chargement des salariés : " + error.message);
+        } else {
+          setEmployees(data || []);
+        }
+        setLoading(false);
+      };
+      fetchEmployees();
+    }, []);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [search, setSearch] = useState("");
   const [showNewEmployeeDialog, setShowNewEmployeeDialog] = useState(false);
@@ -229,7 +245,7 @@ const Recruitment = () => {
     }
   };
 
-  const handleSaveEmployee = () => {
+  const handleSaveEmployee = async () => {
     if (
       !formData.first_name ||
       !formData.last_name ||
@@ -243,39 +259,34 @@ const Recruitment = () => {
 
     if (editingEmployee) {
       // UPDATE
-      const updated = employees.map((emp) =>
-        emp.id === editingEmployee.id
-          ? { ...emp, ...formData } as Employee
-          : emp
-      );
-      setEmployees(updated);
-      setSelectedEmployee(updated.find(e => e.id === editingEmployee.id) || null);
+      const { error } = await supabase
+        .from("recruitment")
+        .update(formData)
+        .eq("id", editingEmployee.id);
+      if (error) {
+        toast.error("Erreur lors de la mise à jour : " + error.message);
+        return;
+      }
+      // Recharger la liste
+      const { data } = await supabase.from("recruitment").select("*").order("created_at", { ascending: false });
+      setEmployees(data || []);
+      setSelectedEmployee(data?.find(e => e.id === editingEmployee.id) || null);
       toast.success("Salarié mis à jour avec succès");
     } else {
       // CREATE
-      const newEmployee: Employee = {
-        id: Math.random().toString(),
-        first_name: formData.first_name || "",
-        last_name: formData.last_name || "",
-        role: formData.role || "",
-        email: formData.email || "",
-        phone: formData.phone || "",
-        department: formData.department || "",
-        country: formData.country || "",
-        hire_date: formData.hire_date || "",
-        contract_type: formData.contract_type || "",
-        salary: formData.salary || 0,
-        notes: formData.notes || "",
+      const insertData = {
+        ...formData,
         photo: formData.photo || `https://api.dicebear.com/7.x/avataaars/svg?seed=${formData.first_name}`,
-        job_description: formData.job_description || "",
-        documents: [],
-        salary_slips: [],
+        created_at: new Date().toISOString(),
       };
-
-      setEmployees([newEmployee, ...employees]);
+      const { data, error } = await supabase.from("recruitment").insert([insertData]).select();
+      if (error) {
+        toast.error("Erreur lors de l'ajout : " + error.message);
+        return;
+      }
+      setEmployees([...(data || []), ...employees]);
       toast.success("Salarié ajouté avec succès");
     }
-
     setShowNewEmployeeDialog(false);
   };
 
@@ -284,8 +295,13 @@ const Recruitment = () => {
     setShowDeleteDialog(true);
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (deleteTargetId) {
+      const { error } = await supabase.from("recruitment").delete().eq("id", deleteTargetId);
+      if (error) {
+        toast.error("Erreur lors de la suppression : " + error.message);
+        return;
+      }
       setEmployees(employees.filter((emp) => emp.id !== deleteTargetId));
       setSelectedEmployee(null);
       toast.success("Salarié supprimé avec succès");
