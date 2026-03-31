@@ -50,7 +50,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-// Interfaces
+// ─── Interfaces ───────────────────────────────────────────────────────────────
+
 interface QuoteItem {
   id: string;
   quote_id: string;
@@ -64,7 +65,7 @@ interface QuoteItem {
 interface Quote {
   id: string;
   number: string;
-  client_id: string;
+  client_id?: string;
   client_name: string;
   created_at: string;
   expiration_date: string;
@@ -80,7 +81,137 @@ interface Quote {
   salesperson_name?: string;
   website_url?: string;
   created_by?: string;
+  country?: string;
 }
+
+// ─── Helper : formater une date ISO en DD/MM/YYYY ─────────────────────────────
+const formatDate = (raw: string | null | undefined): string => {
+  if (!raw) return "-";
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return raw;
+  return d.toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+};
+
+// ─── Helper : générer un PDF via la Print API du navigateur ──────────────────
+const handlePrintPDF = (quote: Quote) => {
+  const statusLabels: Record<string, string> = {
+    draft: "Brouillon",
+    envoye: "Envoyé",
+    accepte: "Accepté",
+    refuse: "Refusé",
+    expire: "Expiré",
+  };
+
+  const itemsRows =
+    quote.items && quote.items.length > 0
+      ? quote.items
+          .map(
+            (item) => `
+          <tr>
+            <td style="padding:8px;border-bottom:1px solid #eee;">${item.product_name}</td>
+            <td style="padding:8px;border-bottom:1px solid #eee;text-align:center;">${item.quantity}</td>
+            <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;">${item.unit_price.toLocaleString("fr-FR")} CFA</td>
+            <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;">${item.tax_rate}%</td>
+            <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;font-weight:600;">${item.subtotal.toLocaleString("fr-FR")} CFA</td>
+          </tr>`
+          )
+          .join("")
+      : `<tr><td colspan="5" style="padding:12px;text-align:center;color:#999;">Aucun article</td></tr>`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="fr">
+    <head>
+      <meta charset="UTF-8"/>
+      <title>Devis ${quote.number}</title>
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: Arial, sans-serif; font-size: 13px; color: #1a1a1a; padding: 40px; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; }
+        .company { font-size: 22px; font-weight: 700; color: #0d9488; }
+        .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
+                 background: #d1fae5; color: #065f46; }
+        h2 { font-size: 18px; margin-bottom: 4px; }
+        .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 28px;
+                background: #f8fafc; border-radius: 8px; padding: 20px; }
+        .meta-item label { font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600; }
+        .meta-item p { margin-top: 4px; font-weight: 500; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        thead { background: #f1f5f9; }
+        th { padding: 10px 8px; text-align: left; font-size: 12px; text-transform: uppercase; color: #64748b; }
+        .totals { margin-left: auto; width: 280px; }
+        .totals div { display: flex; justify-content: space-between; padding: 6px 0;
+                      border-bottom: 1px solid #e2e8f0; font-size: 13px; }
+        .totals .grand-total { font-size: 15px; font-weight: 700; border-bottom: none; margin-top: 4px; }
+        .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e2e8f0;
+                  font-size: 11px; color: #94a3b8; text-align: center; }
+        @media print { body { padding: 20px; } }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <div>
+          <div class="company">MCE</div>
+          <div style="color:#64748b;margin-top:4px;">CRM MCE</div>
+        </div>
+        <div style="text-align:right;">
+          <h2>Devis ${quote.number}</h2>
+          <div style="margin-top:6px;"><span class="badge">${statusLabels[quote.status] || quote.status}</span></div>
+        </div>
+      </div>
+
+      <div class="meta">
+        <div class="meta-item"><label>Client</label><p>${quote.client_name}</p></div>
+        <div class="meta-item"><label>Vendeur</label><p>${quote.salesperson_name || "MCE"}</p></div>
+        <div class="meta-item"><label>Date de création</label><p>${formatDate(quote.created_at)}</p></div>
+        <div class="meta-item"><label>Date d'expiration</label><p>${formatDate(quote.expiration_date)}</p></div>
+        ${quote.website_url ? `<div class="meta-item"><label>Site Web</label><p>${quote.website_url}</p></div>` : ""}
+      </div>
+
+      ${quote.description ? `<div style="margin-bottom:24px;"><label style="font-size:11px;text-transform:uppercase;color:#64748b;font-weight:600;">Description</label><p style="margin-top:6px;color:#475569;">${quote.description}</p></div>` : ""}
+
+      <table>
+        <thead>
+          <tr>
+            <th>Produit</th>
+            <th style="text-align:center;">Qté</th>
+            <th style="text-align:right;">Prix unitaire</th>
+            <th style="text-align:right;">Taxes</th>
+            <th style="text-align:right;">Montant</th>
+          </tr>
+        </thead>
+        <tbody>${itemsRows}</tbody>
+      </table>
+
+      <div class="totals">
+        <div><span>Montant HT</span><span>${(quote.amount_excluding_tax || 0).toLocaleString("fr-FR")} CFA</span></div>
+        <div><span>TVA</span><span>${(quote.tax_amount || 0).toLocaleString("fr-FR")} CFA</span></div>
+        <div class="grand-total"><span>Total TTC</span><span>${(quote.total_amount || 0).toLocaleString("fr-FR")} CFA</span></div>
+      </div>
+
+      ${quote.terms ? `<div style="margin-top:28px;"><label style="font-size:11px;text-transform:uppercase;color:#64748b;font-weight:600;">Conditions de paiement</label><p style="margin-top:6px;color:#475569;">${quote.terms}</p></div>` : ""}
+
+      <div class="footer">Document généré le ${formatDate(new Date().toISOString())} · MCE CRM</div>
+    </body>
+    </html>
+  `;
+
+  const win = window.open("", "_blank");
+  if (!win) {
+    toast.error("Autorisez les popups pour générer le PDF");
+    return;
+  }
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 500);
+};
+
+// ─── Composant principal ──────────────────────────────────────────────────────
 
 const Quotes = () => {
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -104,34 +235,44 @@ const Quotes = () => {
     tax_rate: 0,
   });
 
-  // Charger les devis depuis Supabase au chargement du composant ou lors du filtrage pays
+  // ── Charger les devis ──────────────────────────────────────────────────────
   useEffect(() => {
     const fetchQuotes = async () => {
       setIsLoading(true);
-      let query = supabase.from("quotes").select("*").order("created_at", { ascending: false });
-      if (countryFilter) {
-        query = query.eq("country", countryFilter);
+      let query = supabase
+        .from("quotes")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (countryFilter.trim()) {
+        query = query.ilike("country", `%${countryFilter.trim()}%`);
       }
+
       const { data, error } = await query;
+
       if (error) {
         toast.error("Erreur lors du chargement des devis");
+        console.error(error);
       } else {
-        setQuotes(data || []);
+        const normalized = (data || []).map((q) => ({
+          ...q,
+          items: Array.isArray(q.items) ? q.items : [],
+        }));
+        setQuotes(normalized);
       }
       setIsLoading(false);
     };
     fetchQuotes();
   }, [countryFilter]);
 
-  // Filtrer les devis par recherche texte
-  const filteredQuotes = quotes.filter((quote) => {
-    const matchesSearch =
-      quote.number.toLowerCase().includes(search.toLowerCase()) ||
-      quote.client_name.toLowerCase().includes(search.toLowerCase());
-    return matchesSearch;
-  });
+  // ── Filtre texte ───────────────────────────────────────────────────────────
+  const filteredQuotes = quotes.filter(
+    (q) =>
+      q.number.toLowerCase().includes(search.toLowerCase()) ||
+      q.client_name.toLowerCase().includes(search.toLowerCase())
+  );
 
-  // Créer un nouveau devis (Supabase)
+  // ── Créer un devis ─────────────────────────────────────────────────────────
   const handleCreateQuote = async () => {
     if (!newQuote.number || !newQuote.client_name) {
       toast.error("Veuillez remplir tous les champs");
@@ -141,55 +282,69 @@ const Quotes = () => {
     const quoteToInsert = {
       number: newQuote.number,
       client_name: newQuote.client_name,
-      client_id: Math.random().toString(),
-      created_at: new Date().toISOString(),
-      expiration_date: newQuote.expiration_date,
+      expiration_date: newQuote.expiration_date || null,
       status: newQuote.status,
+      country: newQuote.country || null,
       total_amount: 0,
       tax_amount: 0,
       amount_excluding_tax: 0,
       salesperson_name: "MCE",
       website_url: "",
+      items: [],
     };
 
     setIsLoading(true);
-    const { data, error } = await supabase.from("quotes").insert([quoteToInsert]).select();
+    const { data, error } = await supabase
+      .from("quotes")
+      .insert([quoteToInsert])
+      .select();
     setIsLoading(false);
+
     if (error) {
       toast.error("Erreur lors de la création du devis");
+      console.error(error);
       return;
     }
     if (data && data[0]) {
-      setQuotes([data[0], ...quotes]);
-      setSelectedQuote(data[0]);
+      const newQ = { ...data[0], items: [] };
+      setQuotes([newQ, ...quotes]);
+      setSelectedQuote(newQ);
       setShowNewQuoteDialog(false);
       setNewQuote({ number: "", client_name: "", expiration_date: "", status: "draft", country: "" });
       toast.success("Devis créé avec succès");
     }
   };
 
-  // Modifier un devis (Supabase)
+  // ── Modifier un devis ──────────────────────────────────────────────────────
   const handleUpdateQuote = async (updatedQuote: Quote) => {
     setIsLoading(true);
+    const { id, client_id, created_at, ...fieldsToUpdate } = updatedQuote;
+
     const { data, error } = await supabase
       .from("quotes")
-      .update(updatedQuote)
-      .eq("id", updatedQuote.id)
+      .update(fieldsToUpdate)
+      .eq("id", id)
       .select();
     setIsLoading(false);
+
     if (error) {
       toast.error("Erreur lors de la modification du devis");
+      console.error(error);
       return;
     }
     if (data && data[0]) {
-      setQuotes(quotes.map((q) => (q.id === updatedQuote.id ? data[0] : q)));
-      setSelectedQuote(data[0]);
-      toast.success("Devis modifié avec succès");
+      const updated = {
+        ...data[0],
+        items: Array.isArray(data[0].items) ? data[0].items : [],
+      };
+      setQuotes(quotes.map((q) => (q.id === id ? updated : q)));
+      setSelectedQuote(updated);
+      toast.success("Devis sauvegardé");
     }
   };
 
-  // Ajouter un article au devis
-  const handleAddItem = () => {
+  // ── Ajouter un article ─────────────────────────────────────────────────────
+  const handleAddItem = async () => {
     if (!selectedQuote || !newItem.product_name || newItem.unit_price <= 0) {
       toast.error("Veuillez remplir tous les champs correctement");
       return;
@@ -198,7 +353,7 @@ const Quotes = () => {
     const subtotal = newItem.quantity * newItem.unit_price;
     const tax = subtotal * (newItem.tax_rate / 100);
     const item: QuoteItem = {
-      id: Math.random().toString(),
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
       quote_id: selectedQuote.id,
       product_name: newItem.product_name,
       quantity: newItem.quantity,
@@ -214,7 +369,7 @@ const Quotes = () => {
       0
     );
 
-    const updatedQuote = {
+    const updatedQuote: Quote = {
       ...selectedQuote,
       items: updatedItems,
       total_amount: totalAmount,
@@ -225,11 +380,11 @@ const Quotes = () => {
     setQuotes(quotes.map((q) => (q.id === selectedQuote.id ? updatedQuote : q)));
     setSelectedQuote(updatedQuote);
     setNewItem({ product_name: "", quantity: 1, unit_price: 0, tax_rate: 0 });
-    toast.success("Article ajouté au devis");
+    await handleUpdateQuote(updatedQuote);
   };
 
-  // Supprimer un article
-  const handleDeleteItem = (itemId: string) => {
+  // ── Supprimer un article ───────────────────────────────────────────────────
+  const handleDeleteItem = async (itemId: string) => {
     if (!selectedQuote) return;
 
     const updatedItems = selectedQuote.items?.filter((i) => i.id !== itemId) || [];
@@ -239,7 +394,7 @@ const Quotes = () => {
       0
     );
 
-    const updatedQuote = {
+    const updatedQuote: Quote = {
       ...selectedQuote,
       items: updatedItems,
       total_amount: totalAmount,
@@ -249,17 +404,23 @@ const Quotes = () => {
 
     setQuotes(quotes.map((q) => (q.id === selectedQuote.id ? updatedQuote : q)));
     setSelectedQuote(updatedQuote);
+    await handleUpdateQuote(updatedQuote);
     toast.success("Article supprimé");
   };
 
-  // Supprimer un devis (Supabase)
+  // ── Supprimer un devis ─────────────────────────────────────────────────────
   const handleDeleteQuote = async () => {
     if (!selectedQuote) return;
     setIsLoading(true);
-    const { error } = await supabase.from("quotes").delete().eq("id", selectedQuote.id);
+    const { error } = await supabase
+      .from("quotes")
+      .delete()
+      .eq("id", selectedQuote.id);
     setIsLoading(false);
+
     if (error) {
       toast.error("Erreur lors de la suppression du devis");
+      console.error(error);
       return;
     }
     setQuotes(quotes.filter((q) => q.id !== selectedQuote.id));
@@ -268,17 +429,15 @@ const Quotes = () => {
     toast.success("Devis supprimé");
   };
 
-  // Changer le statut
+  // ── Changer le statut (local uniquement, sauvegarder manuellement) ─────────
   const handleStatusChange = (newStatus: QuoteStatus) => {
     if (!selectedQuote) return;
-
     const updatedQuote = { ...selectedQuote, status: newStatus };
     setQuotes(quotes.map((q) => (q.id === selectedQuote.id ? updatedQuote : q)));
     setSelectedQuote(updatedQuote);
-    toast.success(`Statut changé à ${newStatus}`);
   };
 
-  // Colonnes du tableau
+  // ── Colonnes du tableau ────────────────────────────────────────────────────
   const columns: Column<Quote>[] = [
     {
       key: "number",
@@ -290,7 +449,9 @@ const Quotes = () => {
     {
       key: "created_at",
       header: "Date de création",
-      render: (quote) => <span className="text-sm">{quote.created_at}</span>,
+      render: (quote) => (
+        <span className="text-sm">{formatDate(quote.created_at)}</span>
+      ),
     },
     {
       key: "client_name",
@@ -332,7 +493,7 @@ const Quotes = () => {
       header: "Total",
       render: (quote) => (
         <span className="font-semibold">
-          {quote.total_amount.toLocaleString("fr-FR")} CFA
+          {(quote.total_amount || 0).toLocaleString("fr-FR")} CFA
         </span>
       ),
     },
@@ -356,7 +517,7 @@ const Quotes = () => {
               <Eye className="w-4 h-4 mr-2" />
               Voir
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handlePrintPDF(quote)}>
               <FileText className="w-4 h-4 mr-2" />
               Télécharger PDF
             </DropdownMenuItem>
@@ -370,6 +531,7 @@ const Quotes = () => {
     },
   ];
 
+  // ── Rendu ──────────────────────────────────────────────────────────────────
   return (
     <DashboardLayout>
       <div className="grid grid-cols-12 gap-6">
@@ -421,10 +583,7 @@ const Quotes = () => {
                       type="date"
                       value={newQuote.expiration_date}
                       onChange={(e) =>
-                        setNewQuote({
-                          ...newQuote,
-                          expiration_date: e.target.value,
-                        })
+                        setNewQuote({ ...newQuote, expiration_date: e.target.value })
                       }
                     />
                   </div>
@@ -433,10 +592,7 @@ const Quotes = () => {
                     <Select
                       value={newQuote.status}
                       onValueChange={(value) =>
-                        setNewQuote({
-                          ...newQuote,
-                          status: value as QuoteStatus,
-                        })
+                        setNewQuote({ ...newQuote, status: value as QuoteStatus })
                       }
                     >
                       <SelectTrigger>
@@ -451,6 +607,36 @@ const Quotes = () => {
                       </SelectContent>
                     </Select>
                   </div>
+                  <div>
+                    <Label>Pays</Label>
+                    <Select
+                      value={newQuote.country || ""}
+                      onValueChange={(value) =>
+                        setNewQuote({ ...newQuote, country: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner un pays" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Sénégal">Sénégal</SelectItem>
+                        <SelectItem value="Côte d'Ivoire">Côte d'Ivoire</SelectItem>
+                        <SelectItem value="Mali">Mali</SelectItem>
+                        <SelectItem value="Burkina Faso">Burkina Faso</SelectItem>
+                        <SelectItem value="Guinée">Guinée</SelectItem>
+                        <SelectItem value="Cameroun">Cameroun</SelectItem>
+                        <SelectItem value="Gabon">Gabon</SelectItem>
+                        <SelectItem value="Congo">Congo</SelectItem>
+                        <SelectItem value="RDC">RDC</SelectItem>
+                        <SelectItem value="Togo">Togo</SelectItem>
+                        <SelectItem value="Bénin">Bénin</SelectItem>
+                        <SelectItem value="Niger">Niger</SelectItem>
+                        <SelectItem value="Mauritanie">Mauritanie</SelectItem>
+                        <SelectItem value="France">France</SelectItem>
+                        <SelectItem value="Autre">Autre</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <DialogFooter>
                   <Button
@@ -459,7 +645,9 @@ const Quotes = () => {
                   >
                     Annuler
                   </Button>
-                  <Button onClick={handleCreateQuote}>Créer</Button>
+                  <Button onClick={handleCreateQuote} disabled={isLoading}>
+                    Créer
+                  </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -477,11 +665,32 @@ const Quotes = () => {
               />
             </div>
             <div className="flex-1">
-              <Input
-                placeholder="Filtrer par pays..."
+              <Select
                 value={countryFilter}
-                onChange={(e) => setCountryFilter(e.target.value)}
-              />
+                onValueChange={(value) => setCountryFilter(value === "tous" ? "" : value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Filtrer par pays..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tous">Tous les pays</SelectItem>
+                  <SelectItem value="Sénégal">Sénégal</SelectItem>
+                  <SelectItem value="Côte d'Ivoire">Côte d'Ivoire</SelectItem>
+                  <SelectItem value="Mali">Mali</SelectItem>
+                  <SelectItem value="Burkina Faso">Burkina Faso</SelectItem>
+                  <SelectItem value="Guinée">Guinée</SelectItem>
+                  <SelectItem value="Cameroun">Cameroun</SelectItem>
+                  <SelectItem value="Gabon">Gabon</SelectItem>
+                  <SelectItem value="Congo">Congo</SelectItem>
+                  <SelectItem value="RDC">RDC</SelectItem>
+                  <SelectItem value="Togo">Togo</SelectItem>
+                  <SelectItem value="Bénin">Bénin</SelectItem>
+                  <SelectItem value="Niger">Niger</SelectItem>
+                  <SelectItem value="Mauritanie">Mauritanie</SelectItem>
+                  <SelectItem value="France">France</SelectItem>
+                  <SelectItem value="Autre">Autre</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -507,7 +716,12 @@ const Quotes = () => {
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => handlePrintPDF(selectedQuote)}
+                  >
                     <FileText className="w-4 h-4" />
                     PDF
                   </Button>
@@ -531,9 +745,9 @@ const Quotes = () => {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handlePrintPDF(selectedQuote)}>
                         <Download className="w-4 h-4 mr-2" />
-                        Télécharger
+                        Télécharger PDF
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() => setShowDeleteDialog(true)}
@@ -550,8 +764,9 @@ const Quotes = () => {
               <Tabs defaultValue="details">
                 <TabsList>
                   <TabsTrigger value="details">Détails</TabsTrigger>
-                  <TabsTrigger value="lines">Lignes</TabsTrigger>
-                  <TabsTrigger value="notes">Notes</TabsTrigger>
+                  <TabsTrigger value="lines">
+                    Lignes ({selectedQuote.items?.length || 0})
+                  </TabsTrigger>
                 </TabsList>
 
                 {/* ONGLET DÉTAILS */}
@@ -559,15 +774,28 @@ const Quotes = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label className="font-semibold">Client</Label>
-                      <p className="text-sm mt-1">{selectedQuote.client_name}</p>
+                      <Input
+                        className="mt-1"
+                        value={selectedQuote.client_name || ""}
+                        onChange={(e) =>
+                          setSelectedQuote({ ...selectedQuote, client_name: e.target.value })
+                        }
+                      />
                     </div>
                     <div>
                       <Label className="font-semibold">Date de création</Label>
-                      <p className="text-sm mt-1">{selectedQuote.created_at}</p>
+                      <p className="text-sm mt-2 text-muted-foreground">{formatDate(selectedQuote.created_at)}</p>
                     </div>
                     <div>
                       <Label className="font-semibold">Date d'expiration</Label>
-                      <p className="text-sm mt-1">{selectedQuote.expiration_date}</p>
+                      <Input
+                        type="date"
+                        className="mt-1"
+                        value={selectedQuote.expiration_date?.slice(0, 10) || ""}
+                        onChange={(e) =>
+                          setSelectedQuote({ ...selectedQuote, expiration_date: e.target.value })
+                        }
+                      />
                     </div>
                     <div>
                       <Label className="font-semibold">Statut</Label>
@@ -591,15 +819,56 @@ const Quotes = () => {
                     </div>
                     <div>
                       <Label className="font-semibold">Site Web</Label>
-                      <p className="text-sm mt-1">
-                        {selectedQuote.website_url || "-"}
-                      </p>
+                      <Input
+                        className="mt-1"
+                        placeholder="https://..."
+                        value={selectedQuote.website_url || ""}
+                        onChange={(e) =>
+                          setSelectedQuote({ ...selectedQuote, website_url: e.target.value })
+                        }
+                      />
                     </div>
                     <div>
                       <Label className="font-semibold">Vendeur</Label>
-                      <p className="text-sm mt-1">
-                        {selectedQuote.salesperson_name || "MCE"}
-                      </p>
+                      <Input
+                        className="mt-1"
+                        value={selectedQuote.salesperson_name || ""}
+                        onChange={(e) =>
+                          setSelectedQuote({ ...selectedQuote, salesperson_name: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label className="font-semibold">Pays</Label>
+                      <div className="mt-1">
+                        <Select
+                          value={selectedQuote.country || ""}
+                          onValueChange={(value) =>
+                            setSelectedQuote({ ...selectedQuote, country: value })
+                          }
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Sélectionner un pays" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Sénégal">Sénégal</SelectItem>
+                            <SelectItem value="Côte d'Ivoire">Côte d'Ivoire</SelectItem>
+                            <SelectItem value="Mali">Mali</SelectItem>
+                            <SelectItem value="Burkina Faso">Burkina Faso</SelectItem>
+                            <SelectItem value="Guinée">Guinée</SelectItem>
+                            <SelectItem value="Cameroun">Cameroun</SelectItem>
+                            <SelectItem value="Gabon">Gabon</SelectItem>
+                            <SelectItem value="Congo">Congo</SelectItem>
+                            <SelectItem value="RDC">RDC</SelectItem>
+                            <SelectItem value="Togo">Togo</SelectItem>
+                            <SelectItem value="Bénin">Bénin</SelectItem>
+                            <SelectItem value="Niger">Niger</SelectItem>
+                            <SelectItem value="Mauritanie">Mauritanie</SelectItem>
+                            <SelectItem value="France">France</SelectItem>
+                            <SelectItem value="Autre">Autre</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   </div>
 
@@ -609,12 +878,33 @@ const Quotes = () => {
                       placeholder="Description du devis..."
                       value={selectedQuote.description || ""}
                       onChange={(e) =>
-                        setSelectedQuote({
-                          ...selectedQuote,
-                          description: e.target.value,
-                        })
+                        setSelectedQuote({ ...selectedQuote, description: e.target.value })
                       }
-                      className="mt-1"
+                      className="mt-1 min-h-[80px]"
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="font-semibold">Conditions de paiement</Label>
+                    <Textarea
+                      placeholder="Ex: 30% à la commande, solde à la livraison..."
+                      value={selectedQuote.terms || ""}
+                      onChange={(e) =>
+                        setSelectedQuote({ ...selectedQuote, terms: e.target.value })
+                      }
+                      className="mt-1 min-h-[80px]"
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="font-semibold">Notes internes</Label>
+                    <Textarea
+                      placeholder="Notes internes (non visibles au client)..."
+                      value={selectedQuote.internal_notes || ""}
+                      onChange={(e) =>
+                        setSelectedQuote({ ...selectedQuote, internal_notes: e.target.value })
+                      }
+                      className="mt-1 min-h-[80px]"
                     />
                   </div>
                 </TabsContent>
@@ -634,28 +924,39 @@ const Quotes = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {selectedQuote.items?.map((item) => (
-                          <tr key={item.id} className="border-t">
-                            <td className="px-4 py-2">{item.product_name}</td>
-                            <td className="px-4 py-2 text-center">{item.quantity}</td>
-                            <td className="px-4 py-2 text-right">
-                              {item.unit_price.toLocaleString("fr-FR")} CFA
-                            </td>
-                            <td className="px-4 py-2 text-right">{item.tax_rate}%</td>
-                            <td className="px-4 py-2 text-right font-semibold">
-                              {item.subtotal.toLocaleString("fr-FR")} CFA
-                            </td>
-                            <td className="px-4 py-2 text-center">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleDeleteItem(item.id)}
-                              >
-                                <Trash2 className="w-4 h-4 text-destructive" />
-                              </Button>
+                        {selectedQuote.items && selectedQuote.items.length > 0 ? (
+                          selectedQuote.items.map((item) => (
+                            <tr key={item.id} className="border-t">
+                              <td className="px-4 py-2">{item.product_name}</td>
+                              <td className="px-4 py-2 text-center">{item.quantity}</td>
+                              <td className="px-4 py-2 text-right">
+                                {item.unit_price.toLocaleString("fr-FR")} CFA
+                              </td>
+                              <td className="px-4 py-2 text-right">{item.tax_rate}%</td>
+                              <td className="px-4 py-2 text-right font-semibold">
+                                {item.subtotal.toLocaleString("fr-FR")} CFA
+                              </td>
+                              <td className="px-4 py-2 text-center">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleDeleteItem(item.id)}
+                                >
+                                  <Trash2 className="w-4 h-4 text-destructive" />
+                                </Button>
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td
+                              colSpan={6}
+                              className="px-4 py-8 text-center text-muted-foreground text-sm"
+                            >
+                              Aucun article — ajoutez-en un ci-dessous
                             </td>
                           </tr>
-                        ))}
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -670,10 +971,7 @@ const Quotes = () => {
                           placeholder="Nom produit"
                           value={newItem.product_name}
                           onChange={(e) =>
-                            setNewItem({
-                              ...newItem,
-                              product_name: e.target.value,
-                            })
+                            setNewItem({ ...newItem, product_name: e.target.value })
                           }
                         />
                       </div>
@@ -684,10 +982,7 @@ const Quotes = () => {
                           placeholder="Qty"
                           value={newItem.quantity}
                           onChange={(e) =>
-                            setNewItem({
-                              ...newItem,
-                              quantity: parseInt(e.target.value) || 1,
-                            })
+                            setNewItem({ ...newItem, quantity: parseInt(e.target.value) || 1 })
                           }
                           min="1"
                         />
@@ -699,10 +994,7 @@ const Quotes = () => {
                           placeholder="Prix"
                           value={newItem.unit_price}
                           onChange={(e) =>
-                            setNewItem({
-                              ...newItem,
-                              unit_price: parseFloat(e.target.value) || 0,
-                            })
+                            setNewItem({ ...newItem, unit_price: parseFloat(e.target.value) || 0 })
                           }
                         />
                       </div>
@@ -713,17 +1005,18 @@ const Quotes = () => {
                           placeholder="Taxes"
                           value={newItem.tax_rate}
                           onChange={(e) =>
-                            setNewItem({
-                              ...newItem,
-                              tax_rate: parseFloat(e.target.value) || 0,
-                            })
+                            setNewItem({ ...newItem, tax_rate: parseFloat(e.target.value) || 0 })
                           }
                           min="0"
                           max="100"
                         />
                       </div>
                     </div>
-                    <Button onClick={handleAddItem} className="w-full gap-2">
+                    <Button
+                      onClick={handleAddItem}
+                      className="w-full gap-2"
+                      disabled={isLoading}
+                    >
                       <Plus className="w-4 h-4" />
                       Ajouter l'article
                     </Button>
@@ -733,56 +1026,24 @@ const Quotes = () => {
                   <div className="bg-slate-50 border rounded-lg p-4">
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
-                        <span>Montant HT:</span>
+                        <span>Montant HT :</span>
                         <span className="font-semibold">
-                          {selectedQuote.amount_excluding_tax.toLocaleString("fr-FR")} CFA
+                          {(selectedQuote.amount_excluding_tax || 0).toLocaleString("fr-FR")} CFA
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span>TVA:</span>
+                        <span>TVA :</span>
                         <span className="font-semibold">
-                          {selectedQuote.tax_amount.toLocaleString("fr-FR")} CFA
+                          {(selectedQuote.tax_amount || 0).toLocaleString("fr-FR")} CFA
                         </span>
                       </div>
                       <div className="border-t pt-2 flex justify-between text-base font-bold">
-                        <span>Total:</span>
+                        <span>Total TTC :</span>
                         <span>
-                          {selectedQuote.total_amount.toLocaleString("fr-FR")} CFA
+                          {(selectedQuote.total_amount || 0).toLocaleString("fr-FR")} CFA
                         </span>
                       </div>
                     </div>
-                  </div>
-                </TabsContent>
-
-                {/* ONGLET NOTES */}
-                <TabsContent value="notes" className="space-y-4">
-                  <div>
-                    <Label className="font-semibold">Conditions de paiement</Label>
-                    <Textarea
-                      placeholder="Conditions de paiement..."
-                      value={selectedQuote.terms || ""}
-                      onChange={(e) =>
-                        setSelectedQuote({
-                          ...selectedQuote,
-                          terms: e.target.value,
-                        })
-                      }
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label className="font-semibold">Notes internes</Label>
-                    <Textarea
-                      placeholder="Notes internes (non visibles au client)..."
-                      value={selectedQuote.internal_notes || ""}
-                      onChange={(e) =>
-                        setSelectedQuote({
-                          ...selectedQuote,
-                          internal_notes: e.target.value,
-                        })
-                      }
-                      className="mt-1"
-                    />
                   </div>
                 </TabsContent>
               </Tabs>
