@@ -290,7 +290,6 @@ const Quotes = () => {
       amount_excluding_tax: 0,
       salesperson_name: "MCE",
       website_url: "",
-      items: [],
     };
 
     setIsLoading(true);

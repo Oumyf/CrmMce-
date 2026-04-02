@@ -1,7 +1,11 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/lib/supabase";
 
 import {
@@ -75,90 +79,87 @@ export default function CalendarPage() {
     title: "",
     description: "",
     date: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
-    type: "task" as const,
+    type: "task" as "task" | "deadline" | "reminder",
     project_id: "none",
     reminder_before: "0"
   });
 
+  // ── Vérification connexion Google (une seule fois au montage)
+  useEffect(() => {
+    checkGoogleConnection();
+  }, []);
+
+  // ── Fetch données quand le mois change ou quand googleConnected change
   useEffect(() => {
     fetchData();
-    checkGoogleConnection();
-  }, [currentDate]);
+  }, [currentDate, googleConnected]);
 
   const checkGoogleConnection = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    const { data: { session } } = await supabase.auth.getSession();
 
-    const { data } = await supabase
-      .from("user_google_tokens")
-      .select("id")
-      .eq("user_id", user.id)
-      .maybeSingle();
+    const isGoogle =
+      session?.user?.app_metadata?.provider === "google" ||
+      session?.user?.app_metadata?.providers?.includes("google");
 
-    setGoogleConnected(!!data);
+    setGoogleConnected(!!isGoogle && !!session?.provider_token);
     setCheckingGoogle(false);
   };
 
-const connectGoogle = async () => {
-  try {
-    // 1️⃣ Récupérer la session active
-    let { data: { session }, error } = await supabase.auth.getSession();
-
-    if (error) {
-      console.error("Erreur récupération session:", error);
-      toast.error("Erreur session");
-      return;
-    }
-
-    // 2️⃣ Si pas de session → utilisateur non connecté
-    if (!session) {
-      toast.error("Vous devez être connecté");
-      return;
-    }
-
-    // 3️⃣ Vérifier expiration token (sécurité supplémentaire)
-    const expiresAt = session.expires_at ?? 0;
-    const now = Math.floor(Date.now() / 1000);
-
-    if (expiresAt < now) {
-      console.log("Token expiré, refresh...");
-      const { data: refreshed, error: refreshError } =
-        await supabase.auth.refreshSession();
-
-      if (refreshError || !refreshed.session) {
-        toast.error("Session expirée. Reconnectez-vous.");
-        return;
-      }
-
-      session = refreshed.session;
-    }
-
-    // 4️⃣ Appel sécurisé Edge Function
-    const { data, error: fnError } =
-      await supabase.functions.invoke("google-auth", {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
+  const connectGoogle = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        scopes: "https://www.googleapis.com/auth/calendar",
+        redirectTo: `${window.location.origin}/dashboard/calendar`,
+        queryParams: {
+          access_type: "offline",
+          prompt: "consent",
         },
-      });
+      },
+    });
 
-    if (fnError) {
-      console.error("Erreur function:", fnError);
-      toast.error("Erreur connexion Google");
-      return;
+    if (error) toast.error("Erreur connexion Google");
+  };
+
+  const fetchGoogleEvents = async (): Promise<CalendarEvent[]> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.provider_token;
+    if (!token) return [];
+
+    const startOfMonthDate = startOfMonth(currentDate).toISOString();
+    const endOfMonthDate = endOfMonth(currentDate).toISOString();
+
+    try {
+      const res = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
+        new URLSearchParams({
+          timeMin: startOfMonthDate,
+          timeMax: endOfMonthDate,
+          singleEvents: "true",
+          orderBy: "startTime",
+        }),
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (!res.ok) return [];
+
+      const data = await res.json();
+
+      return (data.items || []).map((item: any) => ({
+        id: item.id,
+        title: item.summary || "Sans titre",
+        description: item.description || "",
+        start_date: item.start?.dateTime || item.start?.date,
+        type: "reminder" as const,
+        is_overdue: false,
+        reminder_time_before: 0,
+      }));
+    } catch {
+      return [];
     }
-
-    // 5️⃣ Redirection vers Google OAuth
-    if (data?.url) {
-      window.location.href = data.url;
-    } else {
-      toast.error("Réponse invalide du serveur");
-    }
-
-  } catch (err) {
-    console.error("Erreur connectGoogle:", err);
-    toast.error("Erreur inattendue");
-  }
-};
+  };
 
   const fetchData = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -175,24 +176,31 @@ const connectGoogle = async () => {
 
     if (prData) setProjects(prData);
 
-    if (evData) {
-      const now = new Date();
-      const enriched = evData.map(e => ({
-        ...e,
-        is_overdue: isBefore(new Date(e.start_date), now) && e.type === "deadline"
-      }));
+    const now = new Date();
+    const supabaseEvents = (evData || []).map(e => ({
+      ...e,
+      is_overdue: isBefore(new Date(e.start_date), now) && e.type === "deadline"
+    }));
 
-      setEvents(enriched);
+    // ✅ Récupérer les événements Google si connecté
+    const googleEvents = googleConnected ? await fetchGoogleEvents() : [];
 
-      const overdue = enriched.filter(e => e.is_overdue);
-      if (overdue.length > 0) {
-        setOverdueEvents(overdue);
-        setShowOverduePopup(true);
-      }
+    // ✅ Merger sans doublons
+    const allEvents = [
+      ...supabaseEvents,
+      ...googleEvents.filter(ge => !supabaseEvents.find(se => se.id === ge.id))
+    ];
+
+    setEvents(allEvents);
+
+    const overdue = supabaseEvents.filter(e => e.is_overdue);
+    if (overdue.length > 0) {
+      setOverdueEvents(overdue);
+      setShowOverduePopup(true);
     }
   };
 
-  const handLeadsdEvent = async () => {
+  const handleAddEvent = async () => {
     if (!formData.title) return toast.error("Le titre est requis");
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -215,14 +223,40 @@ const connectGoogle = async () => {
 
       if (error) throw error;
 
+      // ✅ Sync Google Calendar si connecté
       if (googleConnected) {
-        await supabase.functions.invoke("google-create-event", {
-          body: { event: insertedEvent },
-        });
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.provider_token;
+
+        if (token) {
+          await fetch(
+            "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                summary: insertedEvent.title,
+                description: insertedEvent.description,
+                start: {
+                  dateTime: new Date(insertedEvent.start_date).toISOString(),
+                  timeZone: "Africa/Dakar",
+                },
+                end: {
+                  dateTime: new Date(
+                    new Date(insertedEvent.start_date).getTime() + 60 * 60 * 1000
+                  ).toISOString(),
+                  timeZone: "Africa/Dakar",
+                },
+              }),
+            }
+          );
+        }
       }
 
       toast.success("Événement ajouté avec succès");
-
       setIsModalOpen(false);
       fetchData();
 
@@ -235,8 +269,9 @@ const connectGoogle = async () => {
         reminder_before: "0"
       });
 
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Erreur lors de la création";
+      toast.error(message);
     }
   };
 
@@ -266,6 +301,93 @@ const connectGoogle = async () => {
               ))}
             </div>
             <Button onClick={() => setShowOverduePopup(false)}>Fermer</Button>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal Création Événement */}
+        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Créer un événement</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="title">Titre *</Label>
+                <Input
+                  id="title"
+                  placeholder="Titre de l'événement"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  placeholder="Description..."
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  rows={3}
+                />
+              </div>
+              <div>
+                <Label htmlFor="date">Date et heure *</Label>
+                <Input
+                  id="date"
+                  type="datetime-local"
+                  value={formData.date}
+                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="type">Type *</Label>
+                <Select value={formData.type} onValueChange={(value) => setFormData({ ...formData, type: value as "task" | "deadline" | "reminder" })}>
+                  <SelectTrigger id="type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="task">Tâche</SelectItem>
+                    <SelectItem value="deadline">Deadline</SelectItem>
+                    <SelectItem value="reminder">Rappel</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="project">Projet</Label>
+                <Select value={formData.project_id} onValueChange={(value) => setFormData({ ...formData, project_id: value })}>
+                  <SelectTrigger id="project">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Aucun</SelectItem>
+                    {projects.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="reminder">Rappel avant (minutes)</Label>
+                <Input
+                  id="reminder"
+                  type="number"
+                  placeholder="0"
+                  value={formData.reminder_before}
+                  onChange={(e) => setFormData({ ...formData, reminder_before: e.target.value })}
+                  min="0"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsModalOpen(false)}>
+                Annuler
+              </Button>
+              <Button onClick={handleAddEvent}>
+                Créer
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 
@@ -317,7 +439,7 @@ const connectGoogle = async () => {
         {/* Calendar Grid */}
         <div className="bg-card rounded-xl border shadow-sm overflow-hidden">
           <div className="grid grid-cols-7 border-b bg-muted/30">
-            {["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"].map(d => (
+            {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map(d => (
               <div key={d} className="p-3 text-center text-xs font-bold text-muted-foreground uppercase tracking-wider">
                 {d}
               </div>
