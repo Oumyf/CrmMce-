@@ -1,8 +1,6 @@
-// src/pages/Index.tsx
-
 import { Hero } from "@/components/shared/Hero";
 import { Showcase } from "@/components/shared/Showcase";
-import { Footer } from "@/components/layout/Footer";  // ✅ Ajoute
+import { Footer } from "@/components/layout/Footer";
 
 export const Index = () => (
   <div>
@@ -10,11 +8,6 @@ export const Index = () => (
     <section id="showcase">  {/* ✅ Ajoute id ici */}
       <Showcase />
     </section>
-    <Footer />  {/* ✅ Ajoute */}
+    <Footer />
   </div>
 );
-    </div>
-  );
-};
-
-export default Index;
