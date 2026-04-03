@@ -69,7 +69,7 @@ interface Project {
   progress: number;
   deadline: string;
   created_at: string;
-  created_by: string; // ID du créateur
+  created_by: string;
   real_delivery_date?: string;
   performance_comments?: string;
   description?: string;
@@ -78,15 +78,13 @@ interface Project {
   attachments?: string[];
 }
 
-  const Projects = () => {
+const Projects = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
   
-  // AJOUTE CETTE LIGNE ICI :
   const [searchParams, setSearchParams] = useSearchParams();
-  // ... reste de tes states
 
   const [isManualEntry, setIsManualEntry] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -105,89 +103,78 @@ interface Project {
   const [userProfile, setUserProfile] = useState<Profile | null>(null);
 
   
-  // 1. Récupérer l'utilisateur connecté et les données
- useEffect(() => {
-  const init = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    setCurrentUser(user);
-    
-    if (user) {
-      // On récupère le rôle et les infos depuis la table profiles
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
+  useEffect(() => {
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setCurrentUser(user);
       
-      if (profile) {
-        setUserProfile(profile);
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+        
+        if (profile) {
+          setUserProfile(profile);
+        }
+      }
+      
+      fetchData();
+    };
+    init();
+  }, []);
+
+  useEffect(() => {
+    const projectIdToOpen = searchParams.get('open');
+    
+    if (projectIdToOpen && projects.length > 0) {
+      const project = projects.find(p => p.id === projectIdToOpen);
+      
+      if (project) {
+        setSelectedProject(project);
+        setIsDetailsOpen(true);
+        
+        const newParams = new URLSearchParams(searchParams);
+        newParams.delete('open');
+        setSearchParams(newParams, { replace: true });
       }
     }
-    
-    fetchData();
-  };
-  init();
-}, []);
-
-  // 2. AJOUTE CE NOUVEAU BLOC JUSTE ICI :
-    useEffect(() => {
-  const projectIdToOpen = searchParams.get('open');
-  
-  // Si on a un ID dans l'URL et que la liste des projets est chargée
-  if (projectIdToOpen && projects.length > 0) {
-    const project = projects.find(p => p.id === projectIdToOpen);
-    
-    if (project) {
-      setSelectedProject(project);
-      setIsDetailsOpen(true);
-      
-      // Optionnel : On nettoie l'URL pour enlever le ?open=... 
-      // sans recharger la page pour éviter que ça se réouvre tout seul
-      const newParams = new URLSearchParams(searchParams);
-      newParams.delete('open');
-      setSearchParams(newParams, { replace: true });
-    }
-  }
-}, [searchParams, projects, setSearchParams]);
+  }, [searchParams, projects, setSearchParams]);
 
   const fetchData = async () => {
-  // 1. Récupérer les profils
-  const { data: profs, error: profError } = await supabase.from('profiles').select('*');
-  if (profs) setAvailableProfiles(profs);
-  if (profError) console.error("Erreur Profils:", profError.message);
+    const { data: profs, error: profError } = await supabase.from('profiles').select('*');
+    if (profs) setAvailableProfiles(profs);
+    if (profError) console.error("Erreur Profils:", profError.message);
 
-  // 2. Récupérer les clients
-  const { data: cls, error: clsError } = await supabase
-    .from('clients')
-    .select('*')
-    .ilike('status', 'confirmé');
-  if (cls) setConfirmedClients(cls);
-  if (clsError) console.error("Erreur Clients:", clsError.message);
+    const { data: cls, error: clsError } = await supabase
+      .from('clients')
+      .select('*')
+      .ilike('status', 'confirmé');
+    if (cls) setConfirmedClients(cls);
+    if (clsError) console.error("Erreur Clients:", clsError.message);
 
-  // 3. Récupérer les projets (La partie sensible)
-  const { data: projs, error: projError } = await supabase
-    .from('projects')
-    .select(`
-      *,
-      project_members (
-        profile_id,
-        profiles (
-          first_name,
-          last_name
+    const { data: projs, error: projError } = await supabase
+      .from('projects')
+      .select(`
+        *,
+        project_members (
+          profile_id,
+          profiles (
+            first_name,
+            last_name
+          )
         )
-      )
-    `)
-    .order('created_at', { ascending: false })
-    .order('id', { ascending: false }); // <--- Sécurité ajoutée ici
-  if (projError) {
-    console.error("Erreur Requête Projets:", projError.message);
-    console.error("Détails:", projError.details); // Très important pour voir si c'est un problème de relation
-    toast.error("Erreur lors du chargement des projets");
-  } else if (projs) {
-    console.log("Données reçues:", projs);
-    setProjects(projs as any);
-  }
-};
+      `)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false });
+    if (projError) {
+      console.error("Erreur Requête Projets:", projError.message);
+      toast.error("Erreur lors du chargement des projets");
+    } else if (projs) {
+      setProjects(projs as any);
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -220,346 +207,307 @@ interface Project {
     return matchesSearch && matchesCountry && matchesStatus;
   });
 
-  // SUPPRESSION
   const handleDelete = async (project: Project) => {
-  // 🔐 Sécurité : seul admin
-  if (userProfile?.role !== 'admin') {
-    toast.error("Accès refusé : seuls les administrateurs peuvent supprimer un projet.");
-    return;
-  }
-
-  if (!confirm(`Voulez-vous vraiment supprimer le projet "${project.name}" ?`)) return;
-
-  try {
-    // 1. Supprimer les fichiers du Storage
-    if (project.attachments && project.attachments.length > 0) {
-      const filePaths = project.attachments.map(url => {
-        const parts = url.split('/project-files/');
-        return parts[parts.length - 1];
-      });
-
-      await supabase.storage.from('project-files').remove(filePaths);
+    if (userProfile?.role !== 'admin') {
+      toast.error("Accès refusé : seuls les administrateurs peuvent supprimer un projet.");
+      return;
     }
 
-    // 2. Supprimer de la base
-    const { error } = await supabase
-      .from('projects')
-      .delete()
-      .eq('id', project.id);
+    if (!confirm(`Voulez-vous vraiment supprimer le projet "${project.name}" ?`)) return;
 
-    if (error) throw error;
+    try {
+      if (project.attachments && project.attachments.length > 0) {
+        const filePaths = project.attachments.map(url => {
+          const parts = url.split('/project-files/');
+          return parts[parts.length - 1];
+        });
 
-    toast.success("Projet supprimé définitivement");
-    fetchData();
-
-  } catch (error: any) {
-    toast.error("Erreur lors de la suppression : " + error.message);
-  }
-};
-
-  const handleDeleteFile = async (urlToDelete: string) => {
-  if (!selectedProject) return;
-
-  try {
-    // 1. Extraire le chemin relatif du fichier pour le Storage
-    // Ton URL ressemble à : .../project-files/nom_dossier/fichier.pdf
-    const parts = urlToDelete.split('/project-files/');
-    const filePath = parts[parts.length - 1];
-
-    // 2. Supprimer du Storage
-    const { error: storageError } = await supabase.storage
-      .from('project-files')
-      .remove([filePath]);
-
-    if (storageError) throw storageError;
-
-    // 3. Filtrer la liste des pièces jointes pour enlever l'URL supprimée
-    const updatedAttachments = selectedProject.attachments?.filter(url => url !== urlToDelete) || [];
-
-    // 4. Mettre à jour la table 'projects' en base de données
-    const { error: dbError } = await supabase
-      .from('projects')
-      .update({ attachments: updatedAttachments })
-      .eq('id', selectedProject.id);
-
-    if (dbError) throw dbError;
-
-    // 5. Mettre à jour les états locaux pour l'affichage immédiat
-    const updatedProject = { ...selectedProject, attachments: updatedAttachments };
-    setSelectedProject(updatedProject);
-    setProjects(projects.map(p => p.id === selectedProject.id ? updatedProject : p));
-    
-    toast.success("Fichier supprimé");
-  } catch (error: any) {
-    toast.error("Erreur de suppression: " + error.message);
-  }
-};
-
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-
-  const isAdmin = userProfile?.role === 'admin';
-  const isMember = selectedProject?.project_members?.some(
-    (m: any) => m.profile_id === currentUser?.id
-  );
-
-  // 🔐 Création → admin seulement
-  if (!selectedProject && !isAdmin) {
-    toast.error("Seul un administrateur peut créer un projet.");
-    return;
-  }
-
-  // 🔐 Modification → admin ou membre
-  if (selectedProject && !isAdmin && !isMember) {
-    toast.error("Accès refusé.");
-    return;
-  }
-
-  setUploading(true);
-
-  try {
-    // ==========================
-    // 1️⃣ Upload des fichiers
-    // ==========================
-    const newFileUrls: string[] = [];
-
-    if (selectedFiles.length > 0) {
-      const timestamp = Date.now();
-      const folderName = formData.name.replace(/[^a-z0-9]/gi, "_").toLowerCase();
-
-      for (const file of selectedFiles) {
-        const filePath = `${folderName}/${timestamp}-${file.name}`;
-        const { error: uploadError } = await supabase
-          .storage
-          .from("project-files")
-          .upload(filePath, file);
-
-        if (uploadError) throw uploadError;
-
-        const { data } = supabase
-          .storage
-          .from("project-files")
-          .getPublicUrl(filePath);
-
-        newFileUrls.push(data.publicUrl);
+        await supabase.storage.from('project-files').remove(filePaths);
       }
-    }
-
-    // ==========================
-    // 2️⃣ Préparer client
-    // ==========================
-    const selectedClient = confirmedClients.find(
-      (c) => c.id === selectedClientId
-    );
-
-    const finalClientName = isManualEntry
-      ? formData.client_name
-      : selectedClient
-      ? `${selectedClient.first_name} ${selectedClient.last_name}`
-      : formData.client_name;
-
-    // ==========================
-    // 3️⃣ Payload sécurisé
-    // ==========================
-    const payload: any = {
-      ...formData,
-      client_name: finalClientName,
-      client_id: isManualEntry ? null : selectedClientId,
-      attachments: selectedProject
-        ? [...(selectedProject.attachments || []), ...newFileUrls]
-        : newFileUrls
-    };
-
-    // 👉 created_by seulement en création
-    if (!selectedProject) {
-      payload.created_by = currentUser?.id;
-    }
-
-    let projectId = selectedProject?.id;
-
-    // ==========================
-    // 4️⃣ Sauvegarde projet
-    // ==========================
-    if (selectedProject) {
-      delete payload.created_at;
-      delete payload.created_by; // 🔐 sécurité supplémentaire
 
       const { error } = await supabase
-        .from("projects")
-        .update(payload)
-        .eq("id", selectedProject.id);
+        .from('projects')
+        .delete()
+        .eq('id', project.id);
 
       if (error) throw error;
-    } else {
-      const { data, error } = await supabase
-        .from("projects")
-        .insert([payload])
-        .select()
-        .single();
 
-      if (error) throw error;
-      projectId = data.id;
+      toast.success("Projet supprimé définitivement");
+      fetchData();
+
+    } catch (error: any) {
+      toast.error("Erreur lors de la suppression : " + error.message);
+    }
+  };
+
+  const handleDeleteFile = async (urlToDelete: string) => {
+    if (!selectedProject) return;
+
+    try {
+      const parts = urlToDelete.split('/project-files/');
+      const filePath = parts[parts.length - 1];
+
+      const { error: storageError } = await supabase.storage
+        .from('project-files')
+        .remove([filePath]);
+
+      if (storageError) throw storageError;
+
+      const updatedAttachments = selectedProject.attachments?.filter(url => url !== urlToDelete) || [];
+
+      const { error: dbError } = await supabase
+        .from('projects')
+        .update({ attachments: updatedAttachments })
+        .eq('id', selectedProject.id);
+
+      if (dbError) throw dbError;
+
+      const updatedProject = { ...selectedProject, attachments: updatedAttachments };
+      setSelectedProject(updatedProject);
+      setProjects(projects.map(p => p.id === selectedProject.id ? updatedProject : p));
+      
+      toast.success("Fichier supprimé");
+    } catch (error: any) {
+      toast.error("Erreur de suppression: " + error.message);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const isAdmin = userProfile?.role === 'admin';
+    const isMember = selectedProject?.project_members?.some(
+      (m: any) => m.profile_id === currentUser?.id
+    );
+
+    if (!selectedProject && !isAdmin) {
+      toast.error("Seul un administrateur peut créer un projet.");
+      return;
     }
 
-    // ==========================
-    // 5️⃣ Gestion membres (ADMIN SEULEMENT)
-    // ==========================
-    if (projectId && isAdmin) {
+    if (selectedProject && !isAdmin && !isMember) {
+      toast.error("Accès refusé.");
+      return;
+    }
 
-      const oldMemberIds =
-        selectedProject?.project_members?.map(
-          (m: any) => m.profile_id
-        ) || [];
+    setUploading(true);
 
-      // Suppression anciens membres
-      if (selectedProject) {
-        await supabase
-          .from("project_members")
-          .delete()
-          .eq("project_id", projectId);
+    try {
+      const newFileUrls: string[] = [];
+
+      if (selectedFiles.length > 0) {
+        const timestamp = Date.now();
+        const folderName = formData.name.replace(/[^a-z0-9]/gi, "_").toLowerCase();
+
+        for (const file of selectedFiles) {
+          const filePath = `${folderName}/${timestamp}-${file.name}`;
+          const { error: uploadError } = await supabase
+            .storage
+            .from("project-files")
+            .upload(filePath, file);
+
+          if (uploadError) throw uploadError;
+
+          const { data } = supabase
+            .storage
+            .from("project-files")
+            .getPublicUrl(filePath);
+
+          newFileUrls.push(data.publicUrl);
+        }
       }
 
-      // Insertion nouveaux membres
-      if (selectedMemberIds.length > 0) {
-        const membersData = selectedMemberIds.map((id) => ({
-          project_id: projectId,
-          profile_id: id
-        }));
-
-        await supabase
-          .from("project_members")
-          .insert(membersData);
-      }
-
-      // ==========================
-      // 6️⃣ Notifications
-      // ==========================
-      const notifications: any[] = [];
-      const editorName =
-        currentUser?.user_metadata?.first_name || "Un collaborateur";
-
-      const addedIds = selectedMemberIds.filter(
-        (id) => !oldMemberIds.includes(id)
+      const selectedClient = confirmedClients.find(
+        (c) => c.id === selectedClientId
       );
 
-      addedIds.forEach((id) => {
-        if (id !== currentUser.id) {
-          notifications.push({
-            profile_id: id,
-            title: "🚀 Nouveau projet",
-            message: `Vous avez été ajouté au projet "${formData.name}" par ${editorName}`,
-            project_id: projectId
-          });
-        }
-      });
+      const finalClientName = isManualEntry
+        ? formData.client_name
+        : selectedClient
+        ? `${selectedClient.first_name} ${selectedClient.last_name}`
+        : formData.client_name;
 
-      if (notifications.length > 0) {
-        await supabase
-          .from("notifications")
-          .insert(notifications);
+      const payload: any = {
+        ...formData,
+        client_name: finalClientName,
+        client_id: isManualEntry ? null : selectedClientId,
+        attachments: selectedProject
+          ? [...(selectedProject.attachments || []), ...newFileUrls]
+          : newFileUrls
+      };
+
+      if (!selectedProject) {
+        payload.created_by = currentUser?.id;
       }
+
+      let projectId = selectedProject?.id;
+
+      if (selectedProject) {
+        delete payload.created_at;
+        delete payload.created_by;
+
+        const { error } = await supabase
+          .from("projects")
+          .update(payload)
+          .eq("id", selectedProject.id);
+
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase
+          .from("projects")
+          .insert([payload])
+          .select()
+          .single();
+
+        if (error) throw error;
+        projectId = data.id;
+      }
+
+      if (projectId && isAdmin) {
+        const oldMemberIds =
+          selectedProject?.project_members?.map(
+            (m: any) => m.profile_id
+          ) || [];
+
+        if (selectedProject) {
+          await supabase
+            .from("project_members")
+            .delete()
+            .eq("project_id", projectId);
+        }
+
+        if (selectedMemberIds.length > 0) {
+          const membersData = selectedMemberIds.map((id) => ({
+            project_id: projectId,
+            profile_id: id
+          }));
+
+          await supabase
+            .from("project_members")
+            .insert(membersData);
+        }
+
+        const notifications: any[] = [];
+        const editorName =
+          currentUser?.user_metadata?.first_name || "Un collaborateur";
+
+        const addedIds = selectedMemberIds.filter(
+          (id) => !oldMemberIds.includes(id)
+        );
+
+        addedIds.forEach((id) => {
+          if (id !== currentUser.id) {
+            notifications.push({
+              profile_id: id,
+              title: "🚀 Nouveau projet",
+              message: `Vous avez été ajouté au projet "${formData.name}" par ${editorName}`,
+              project_id: projectId
+            });
+          }
+        });
+
+        if (notifications.length > 0) {
+          await supabase
+            .from("notifications")
+            .insert(notifications);
+        }
+      }
+
+      toast.success("Opération réussie !");
+      setIsDialogOpen(false);
+      fetchData();
+      resetForm();
+
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.message || "Erreur inattendue");
+    } finally {
+      setUploading(false);
     }
-
-    // ==========================
-    // 7️⃣ Finalisation
-    // ==========================
-    toast.success("Opération réussie !");
-    setIsDialogOpen(false);
-    fetchData();
-    resetForm();
-
-  } catch (error: any) {
-    console.error(error);
-    toast.error(error.message || "Erreur inattendue");
-  } finally {
-    setUploading(false);
-  }
-};
-/////////fin  handlesubmit///////////
-
+  };
 
   const resetForm = () => {
-  setSelectedProject(null); // IMPORTANT
-  setSelectedMemberIds([]);
-  setSelectedClientId("");
-  setSelectedFiles([]);
-  setIsManualEntry(false);
-  setFormData({
-    name: "", client_name: "", deadline: "", status: "en_attente",
-    created_at: new Date().toISOString().split('T')[0],
-    real_delivery_date: "", description: "", performance_comments: "", country: "Sénégal"
-  });
-};
+    setSelectedProject(null);
+    setSelectedMemberIds([]);
+    setSelectedClientId("");
+    setSelectedFiles([]);
+    setIsManualEntry(false);
+    setFormData({
+      name: "", client_name: "", deadline: "", status: "en_attente",
+      created_at: new Date().toISOString().split('T')[0],
+      real_delivery_date: "", description: "", performance_comments: "", country: "Sénégal"
+    });
+  };
 
   const toggleMember = (id: string) => {
-  setSelectedMemberIds(prev => 
-    prev.includes(id) 
-      ? prev.filter(i => i !== id) // Ici, c'est bien "id" car c'est l'argument de la fonction
-      : [...prev, id]
-  );
-};;
+    setSelectedMemberIds(prev => 
+      prev.includes(id) 
+        ? prev.filter(i => i !== id)
+        : [...prev, id]
+    );
+  };
 
   const handleViewDetails = (project: Project) => {
     setSelectedProject(project);
     setIsDetailsOpen(true);
   };
 
-const handleEdit = (project: Project) => {
+  const handleEdit = (project: Project) => {
+    const isAdmin = userProfile?.role === 'admin';
+    const isMember = project.project_members?.some(
+      (m: any) => m.profile_id === currentUser?.id
+    );
 
-  const isAdmin = userProfile?.role === 'admin';
-  const isMember = project.project_members?.some(
-    (m: any) => m.profile_id === currentUser?.id
-  );
+    if (!isAdmin && !isMember) {
+      toast.error("Accès refusé.");
+      return;
+    }
 
-  if (!isAdmin && !isMember) {
-    toast.error("Accès refusé.");
-    return;
-  }
+    setSelectedProject(project); 
+    
+    setFormData({
+      name: project.name,
+      client_name: project.client_name,
+      deadline: project.deadline,
+      created_at: project.created_at.split('T')[0],
+      status: project.status,
+      real_delivery_date: project.real_delivery_date || "",
+      description: project.description || "",
+      performance_comments: project.performance_comments || "",
+      country: project.country
+    });
 
-  setSelectedProject(project); 
-  
-  setFormData({
-    name: project.name,
-    client_name: project.client_name,
-    deadline: project.deadline,
-    created_at: project.created_at.split('T')[0],
-    status: project.status,
-    real_delivery_date: project.real_delivery_date || "",
-    description: project.description || "",
-    performance_comments: project.performance_comments || "",
-    country: project.country
-  });
+    const memberIds = project.project_members?.map((m: any) => m.profile_id) || [];
+    setSelectedMemberIds(memberIds);
 
-  const memberIds = project.project_members?.map((m: any) => m.profile_id) || [];
-  setSelectedMemberIds(memberIds);
+    const projAny = project as any;
+    if (projAny.client_id) {
+      setSelectedClientId(projAny.client_id);
+      setIsManualEntry(false);
+    } else {
+      setIsManualEntry(true);
+    }
 
-  const projAny = project as any;
-  if (projAny.client_id) {
-    setSelectedClientId(projAny.client_id);
-    setIsManualEntry(false);
-  } else {
-    setIsManualEntry(true);
-  }
-
-  setIsDialogOpen(true);
-};
+    setIsDialogOpen(true);
+  };
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="space-y-6 px-0 sm:px-0">
+        {/* Header - Responsive */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Projets</h1>
-            <p className="text-muted-foreground mt-1">Suivi des livrables et performance.</p>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Projets</h1>
+            <p className="text-sm sm:text-base text-muted-foreground mt-1">Suivi des livrables et performance.</p>
           </div>
-          {/* AJOUT DE LA CONDITION ICI : On n'affiche le bouton que si le rôle est 'admin' */}
           {userProfile?.role === 'admin' && (
-            <Button onClick={() => { resetForm(); setIsDialogOpen(true); }} className="gap-2 bg-primary">
+            <Button onClick={() => { resetForm(); setIsDialogOpen(true); }} className="gap-2 bg-primary w-full sm:w-auto">
               <Plus className="w-4 h-4" /> Nouveau projet
             </Button>
           )}
         </div>
 
+        {/* Filters */}
         <FilterBar
           searchPlaceholder="Rechercher un projet..."
           onSearchChange={setSearchQuery}
@@ -577,51 +525,52 @@ const handleEdit = (project: Project) => {
             </Select>
           }
         />
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredProjects.map((project) => {
-              // 1. On vérifie si l'utilisateur est le créateur
-              const isAdmin = userProfile?.role === 'admin';
-              const isMember = project.project_members?.some(
+
+        {/* Grid - Responsive */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+          {filteredProjects.map((project) => {
+            const isAdmin = userProfile?.role === 'admin';
+            const isMember = project.project_members?.some(
               (m: any) => m.profile_id === currentUser?.id
             );
 
-              
-              // 3. Définition des droits
-              const canEdit =  isAdmin || isMember;
-               // Créateur ET membres peuvent modifier
-              const canDelete =  isAdmin;           // SEUL le créateur peut supprimer
+            const canEdit = isAdmin || isMember;
+            const canDelete = isAdmin;
 
-              return (
-                <ProjectCard
-                  key={project.id} 
-                  project={project} 
-                  onViewDetails={() => handleViewDetails(project)}
-                  onDelete={() => handleDelete(project)}
-                  onEdit={() => handleEdit(project)}
-                  canEdit={canEdit}      // On passe le nouveau droit
-                  canDelete={canDelete}  // On passe le nouveau droit
-                />
-              );
-            })}
-          </div>
+            return (
+              <ProjectCard
+                key={project.id} 
+                project={project} 
+                onViewDetails={() => handleViewDetails(project)}
+                onDelete={() => handleDelete(project)}
+                onEdit={() => handleEdit(project)}
+                canEdit={canEdit}
+                canDelete={canDelete}
+              />
+            );
+          })}
+        </div>
 
-        {/* DIALOG DE CRÉATION */}
+        {/* DIALOG DE CRÉATION - Responsive */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader><DialogTitle>{selectedProject ? `Modifier : ${selectedProject.name}` : "Créer un nouveau projet"}</DialogTitle></DialogHeader>
+          <DialogContent className="w-[95vw] sm:w-full sm:max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+            <DialogHeader><DialogTitle className="text-lg sm:text-xl">{selectedProject ? `Modifier : ${selectedProject.name}` : "Créer un nouveau projet"}</DialogTitle></DialogHeader>
+            
             <div className="flex gap-2 p-1 bg-muted rounded-md mb-4">
-              <Button variant={!isManualEntry ? "secondary" : "ghost"} className="flex-1 text-xs" onClick={() => setIsManualEntry(false)}>Lier Client</Button>
-              <Button variant={isManualEntry ? "secondary" : "ghost"} className="flex-1 text-xs" onClick={() => setIsManualEntry(true)}>Manuel</Button>
+              <Button variant={!isManualEntry ? "secondary" : "ghost"} className="flex-1 text-xs sm:text-sm" onClick={() => setIsManualEntry(false)}>Lier Client</Button>
+              <Button variant={isManualEntry ? "secondary" : "ghost"} className="flex-1 text-xs sm:text-sm" onClick={() => setIsManualEntry(true)}>Manuel</Button>
             </div>
-            <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
-              <div className="col-span-2 space-y-2">
-                <Label>Nom du projet</Label>
-                <Input required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="col-span-1 sm:col-span-2 space-y-2">
+                <Label className="text-sm">Nom du projet</Label>
+                <Input required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="h-10" />
               </div>
-              <div className="col-span-1 space-y-2">
-                <Label>Pays du projet</Label>
+
+              <div className="space-y-2">
+                <Label className="text-sm">Pays du projet</Label>
                 <Select value={formData.country} onValueChange={v => setFormData({...formData, country: v})}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Sénégal">Sénégal</SelectItem>
                     <SelectItem value="France">France</SelectItem>
@@ -630,13 +579,14 @@ const handleEdit = (project: Project) => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="col-span-1 space-y-2">
-                <Label>{isManualEntry ? "Client" : "Client lié"}</Label>
+
+              <div className="space-y-2">
+                <Label className="text-sm">{isManualEntry ? "Client" : "Client lié"}</Label>
                 {isManualEntry ? (
-                  <Input required value={formData.client_name} onChange={e => setFormData({...formData, client_name: e.target.value})} />
+                  <Input required value={formData.client_name} onChange={e => setFormData({...formData, client_name: e.target.value})} className="h-10" />
                 ) : (
                   <Select onValueChange={setSelectedClientId} value={selectedClientId}>
-                    <SelectTrigger><SelectValue placeholder="Choisir..." /></SelectTrigger>
+                    <SelectTrigger className="h-10"><SelectValue placeholder="Choisir..." /></SelectTrigger>
                     <SelectContent>
                       {confirmedClients.map(c => (
                         <SelectItem key={c.id} value={c.id}>{c.first_name} {c.last_name}</SelectItem>
@@ -645,18 +595,21 @@ const handleEdit = (project: Project) => {
                   </Select>
                 )}
               </div>
+
               <div className="space-y-2">
-                <Label>Date de création</Label>
-                <Input type="date" value={formData.created_at} onChange={e => setFormData({...formData, created_at: e.target.value})} />
+                <Label className="text-sm">Date de création</Label>
+                <Input type="date" value={formData.created_at} onChange={e => setFormData({...formData, created_at: e.target.value})} className="h-10" />
               </div>
+
               <div className="space-y-2">
-                <Label>Deadline (Prévue)</Label>
-                <Input type="date" required value={formData.deadline} onChange={e => setFormData({...formData, deadline: e.target.value})} />
+                <Label className="text-sm">Deadline (Prévue)</Label>
+                <Input type="date" required value={formData.deadline} onChange={e => setFormData({...formData, deadline: e.target.value})} className="h-10" />
               </div>
+
               <div className="space-y-2">
-                <Label>Statut actuel</Label>
+                <Label className="text-sm">Statut actuel</Label>
                 <Select value={formData.status} onValueChange={(v: any) => setFormData({...formData, status: v})}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="en_attente">En attente</SelectItem>
                     <SelectItem value="en_cours">En cours</SelectItem>
@@ -664,76 +617,77 @@ const handleEdit = (project: Project) => {
                   </SelectContent>
                 </Select>
               </div>
+
               <div className="space-y-2">
-                <Label>Date de livraison réelle</Label>
-                <Input type="date" value={formData.real_delivery_date} onChange={e => setFormData({...formData, real_delivery_date: e.target.value})} />
+                <Label className="text-sm">Date de livraison réelle</Label>
+                <Input type="date" value={formData.real_delivery_date} onChange={e => setFormData({...formData, real_delivery_date: e.target.value})} className="h-10" />
               </div>
 
-              <div className="col-span-2 space-y-2">
-  <Label>Membres de l'équipe</Label>
-  <div className="flex flex-col gap-2">
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="outline" className="w-full justify-between h-11" type="button">
-          <div className="flex items-center gap-2">
-            <Users className="w-4 h-4" /> 
-            {selectedMemberIds.length} membre(s) sélectionné(s)
-          </div>
-          <ChevronsUpDown className="h-4 w-4 opacity-50" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[400px] p-0" align="start">
-        <Command>
-          <CommandInput placeholder="Chercher un membre..." />
-          <CommandGroup className="max-h-60 overflow-y-auto">
-            {availableProfiles.map((p) => (
-              <CommandItem 
-                key={p.id} 
-                onSelect={() => toggleMember(p.id)}
-              >
-                <Check 
-                  className={`mr-2 h-4 w-4 ${
-                    selectedMemberIds.includes(p.id) ? "opacity-100" : "opacity-0"
-                  }`} 
-                />
-                {p.first_name} {p.last_name} ({p.role})
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        </Command>
-      </PopoverContent>
-    </Popover>
+              <div className="col-span-1 sm:col-span-2 space-y-2">
+                <Label className="text-sm">Membres de l'équipe</Label>
+                <div className="flex flex-col gap-2">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-between h-10 text-sm" type="button">
+                        <div className="flex items-center gap-2">
+                          <Users className="w-4 h-4" /> 
+                          {selectedMemberIds.length} membre(s)
+                        </div>
+                        <ChevronsUpDown className="h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[80vw] sm:w-[400px] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Chercher un membre..." />
+                        <CommandGroup className="max-h-60 overflow-y-auto">
+                          {availableProfiles.map((p) => (
+                            <CommandItem 
+                              key={p.id} 
+                              onSelect={() => toggleMember(p.id)}
+                              className="text-sm"
+                            >
+                              <Check 
+                                className={`mr-2 h-4 w-4 ${
+                                  selectedMemberIds.includes(p.id) ? "opacity-100" : "opacity-0"
+                                }`} 
+                              />
+                              {p.first_name} {p.last_name} ({p.role})
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
 
-    {/* UNE SEULE FOIS : LISTE DES BADGES DES MEMBRES SÉLECTIONNÉS */}
-    <div className="flex flex-wrap gap-2 mt-1">
-      {selectedMemberIds.map(id => {
-        const profile = availableProfiles.find(p => p.id === id);
-        if (!profile) return null;
-        return (
-          <div 
-            key={id} 
-            className="flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/20 px-2 py-1 rounded-md text-xs font-medium"
-          >
-            {profile.first_name} {profile.last_name}
-            <X 
-              className="w-3 h-3 cursor-pointer hover:text-destructive" 
-              onClick={() => toggleMember(id)} 
-            />
-          </div>
-        );
-      })}
-    </div>
-  </div>
-</div>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {selectedMemberIds.map(id => {
+                      const profile = availableProfiles.find(p => p.id === id);
+                      if (!profile) return null;
+                      return (
+                        <div 
+                          key={id} 
+                          className="flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/20 px-2 py-1 rounded-md text-xs font-medium"
+                        >
+                          {profile.first_name} {profile.last_name}
+                          <X 
+                            className="w-3 h-3 cursor-pointer hover:text-destructive" 
+                            onClick={() => toggleMember(id)} 
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
 
-              <div className="col-span-2 space-y-2">
-                <Label>Documents joints (PDF, Excel, Images)</Label>
+              <div className="col-span-1 sm:col-span-2 space-y-2">
+                <Label className="text-sm">Documents joints</Label>
                 <div 
-                  className="border-2 border-dashed border-muted rounded-lg p-6 hover:bg-muted/50 transition-all cursor-pointer flex flex-col items-center gap-2"
+                  className="border-2 border-dashed border-muted rounded-lg p-4 sm:p-6 hover:bg-muted/50 transition-all cursor-pointer flex flex-col items-center gap-2"
                   onClick={() => document.getElementById('file-upload')?.click()}
                 >
-                  <Upload className="w-8 h-8 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">Cliquez pour ajouter des fichiers</p>
+                  <Upload className="w-6 sm:w-8 h-6 sm:h-8 text-muted-foreground" />
+                  <p className="text-xs sm:text-sm text-muted-foreground text-center">Cliquez pour ajouter des fichiers</p>
                   <input 
                     type="file" 
                     id="file-upload" 
@@ -748,7 +702,7 @@ const handleEdit = (project: Project) => {
                     {selectedFiles.map((file, idx) => (
                       <div key={idx} className="flex items-center gap-2 bg-secondary/50 px-3 py-1.5 rounded-md text-xs border">
                         <FileText className="w-3 h-3" />
-                        <span className="max-w-[150px] truncate">{file.name}</span>
+                        <span className="max-w-[120px] sm:max-w-[150px] truncate">{file.name}</span>
                         <X className="w-3 h-3 text-destructive cursor-pointer" onClick={(e) => { e.stopPropagation(); removeFile(idx); }} />
                       </div>
                     ))}
@@ -756,162 +710,155 @@ const handleEdit = (project: Project) => {
                 )}
               </div>
 
-              <div className="col-span-2 space-y-2">
-                <Label>Description / Besoins</Label>
-                <Textarea rows={2} value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
+              <div className="col-span-1 sm:col-span-2 space-y-2">
+                <Label className="text-sm">Description / Besoins</Label>
+                <Textarea rows={2} value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="text-sm" />
               </div>
-              <div className="col-span-2 space-y-2">
-                <Label>Commentaires de performance (Post-mortem)</Label>
-                <Textarea placeholder="Points forts, difficultés rencontrées..." rows={2} value={formData.performance_comments} onChange={e => setFormData({...formData, performance_comments: e.target.value})} />
+
+              <div className="col-span-1 sm:col-span-2 space-y-2">
+                <Label className="text-sm">Commentaires de performance</Label>
+                <Textarea placeholder="Points forts, difficultés..." rows={2} value={formData.performance_comments} onChange={e => setFormData({...formData, performance_comments: e.target.value})} className="text-sm" />
               </div>
-              <div className="col-span-2 flex justify-end gap-3 border-t pt-4">
-                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Annuler</Button>
-                <Button type="submit" className="bg-primary" disabled={uploading}>
-                  {uploading ? "Envoi en cours..." : "Enregistrer le projet"}
+
+              <div className="col-span-1 sm:col-span-2 flex flex-col-reverse sm:flex-row justify-end gap-2 border-t pt-4">
+                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} className="w-full sm:w-auto">Annuler</Button>
+                <Button type="submit" className="bg-primary w-full sm:w-auto" disabled={uploading}>
+                  {uploading ? "Envoi..." : "Enregistrer"}
                 </Button>
               </div>
             </form>
           </DialogContent>
         </Dialog>
 
-       {/* DIALOG DE DÉTAILS */}
-<Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-  <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-    <DialogHeader>
-      <DialogTitle className="flex items-center gap-2">
-        <Info className="w-5 h-5 text-primary" /> Détails du Projet
-      </DialogTitle>
-    </DialogHeader>
+        {/* DIALOG DE DÉTAILS - Responsive */}
+        <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+          <DialogContent className="w-[95vw] sm:w-full sm:max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <Info className="w-5 h-5 text-primary" /> Détails du Projet
+              </DialogTitle>
+            </DialogHeader>
 
-    {selectedProject && (
-      <div className="space-y-6 py-4">
-        {/* GRILLE D'INFORMATIONS */}
-        <div className="grid grid-cols-2 gap-4">
-          <div><Label className="text-muted-foreground text-xs">Nom du projet</Label><p className="font-bold">{selectedProject.name}</p></div>
-          <div><Label className="text-muted-foreground text-xs">Client</Label><p className="font-bold">{selectedProject.client_name}</p></div>
-          <div><Label className="text-muted-foreground text-xs">Pays</Label><p className="flex items-center gap-1 font-bold"><Globe className="w-3 h-3" />{selectedProject.country}</p></div>
-          <div><Label className="text-muted-foreground text-xs">Statut</Label><div><StatusBadge status={selectedProject.status} /></div></div>
-          <div><Label className="text-muted-foreground text-xs">Date de création</Label><p className="font-medium text-sm">{new Date(selectedProject.created_at).toLocaleDateString()}</p></div>
-          <div><Label className="text-muted-foreground text-xs">Deadline prévue</Label><p className="font-medium text-sm text-blue-600">{new Date(selectedProject.deadline).toLocaleDateString()}</p></div>
-          <div><Label className="text-muted-foreground text-xs">Livraison réelle</Label><p className="font-medium text-sm">{selectedProject.real_delivery_date ? new Date(selectedProject.real_delivery_date).toLocaleDateString() : "Non livrée"}</p></div>
-        </div>
+            {selectedProject && (
+              <div className="space-y-6 py-4">
+                {/* GRILLE D'INFORMATIONS */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div><Label className="text-muted-foreground text-xs">Nom du projet</Label><p className="font-bold text-sm">{selectedProject.name}</p></div>
+                  <div><Label className="text-muted-foreground text-xs">Client</Label><p className="font-bold text-sm">{selectedProject.client_name}</p></div>
+                  <div><Label className="text-muted-foreground text-xs">Pays</Label><p className="flex items-center gap-1 font-bold text-sm"><Globe className="w-3 h-3" />{selectedProject.country}</p></div>
+                  <div><Label className="text-muted-foreground text-xs">Statut</Label><div><StatusBadge status={selectedProject.status} /></div></div>
+                  <div><Label className="text-muted-foreground text-xs">Date de création</Label><p className="font-medium text-xs">{new Date(selectedProject.created_at).toLocaleDateString()}</p></div>
+                  <div><Label className="text-muted-foreground text-xs">Deadline prévue</Label><p className="font-medium text-xs text-blue-600">{new Date(selectedProject.deadline).toLocaleDateString()}</p></div>
+                  <div><Label className="text-muted-foreground text-xs">Livraison réelle</Label><p className="font-medium text-xs">{selectedProject.real_delivery_date ? new Date(selectedProject.real_delivery_date).toLocaleDateString() : "Non livrée"}</p></div>
+                </div>
 
-        {/* SECTION DOCUMENTS */}
-        <div className="col-span-2 space-y-3 border-t pt-4">
-          <Label className="text-sm font-semibold flex items-center gap-2">
-            <FileText className="w-4 h-4 text-primary" /> 
-            Documents du projet
-          </Label>
-          
-          {/* A. FICHIERS DÉJÀ EXISTANTS (En base de données) */}
-          {selectedProject.attachments && selectedProject.attachments.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-3">
-              {selectedProject.attachments.map((url, i) => {
-                // SÉCURITÉ : Seul le créateur peut supprimer
-                const isCreator = currentUser?.id === selectedProject.created_by;
-                
-                // NETTOYAGE DU NOM : extraction du nom réel du fichier depuis l'URL
-                const fileName = (() => {
-                  try {
-                    const decoded = decodeURIComponent(url);
-                    const parts = decoded.split('/');
-                    return parts[parts.length - 1].replace(/^\d+-/, ''); 
-                  } catch { return "Document #" + (i + 1); }
-                })();
+                {/* SECTION DOCUMENTS */}
+                <div className="space-y-3 border-t pt-4">
+                  <Label className="text-sm font-semibold flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-primary" /> 
+                    Documents
+                  </Label>
+                  
+                  {selectedProject.attachments && selectedProject.attachments.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {selectedProject.attachments.map((url, i) => {
+                        const isCreator = currentUser?.id === selectedProject.created_by;
+                        const fileName = (() => {
+                          try {
+                            const decoded = decodeURIComponent(url);
+                            const parts = decoded.split('/');
+                            return parts[parts.length - 1].replace(/^\d+-/, ''); 
+                          } catch { return "Document #" + (i + 1); }
+                        })();
 
-                return (
-                  <div key={i} className="flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-md text-xs border border-blue-200 font-medium group">
-                    <button 
-                      type="button"
-                      onClick={() => window.open(url, '_blank')}
-                      className="flex items-center gap-2 hover:underline decoration-blue-400"
-                    >
-                      <FileText className="w-3 h-3" />
-                      <span className="max-w-[180px] truncate">{fileName}</span>
-                    </button>
-                    
-                    {isCreator && (
-                      <Trash2 
-                        className="w-3.5 h-3.5 text-red-500 cursor-pointer hover:scale-110 transition-transform ml-1" 
-                        onClick={() => {
-                          if(confirm("Supprimer définitivement ce fichier ?")) handleDeleteFile(url);
-                        }} 
-                      />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                        return (
+                          <div key={i} className="flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-md text-xs border border-blue-200 font-medium group">
+                            <button 
+                              type="button"
+                              onClick={() => window.open(url, '_blank')}
+                              className="flex items-center gap-2 hover:underline decoration-blue-400"
+                            >
+                              <FileText className="w-3 h-3" />
+                              <span className="max-w-[100px] sm:max-w-[180px] truncate">{fileName}</span>
+                            </button>
+                            
+                            {isCreator && (
+                              <Trash2 
+                                className="w-3.5 h-3.5 text-red-500 cursor-pointer hover:scale-110 transition-transform ml-1" 
+                                onClick={() => {
+                                  if(confirm("Supprimer ce fichier ?")) handleDeleteFile(url);
+                                }} 
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
-          {/* B. ZONE D'UPLOAD (Pour les nouveaux fichiers) */}
-          <div 
-            className="border-2 border-dashed border-muted rounded-lg p-6 hover:bg-muted/30 transition-all cursor-pointer flex flex-col items-center gap-2 group"
-            onClick={() => document.getElementById('file-upload')?.click()}
-          >
-            <Upload className="w-8 h-8 text-muted-foreground group-hover:text-primary transition-colors" />
-            <p className="text-sm text-muted-foreground">Cliquez pour ajouter des fichiers</p>
-            <input 
-              type="file" 
-              id="file-upload" 
-              className="hidden" 
-              multiple 
-              accept=".pdf,.xlsx,.xls,image/*" 
-              onChange={handleFileChange}
-            />
-          </div>
-
-          {/* C. FICHIERS EN COURS D'AJOUT (Staging - Pas encore enregistrés) */}
-          {selectedFiles.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Fichiers prêts à l'envoi :</p>
-              <div className="flex flex-wrap gap-2 mt-1">
-                {selectedFiles.map((file, idx) => (
-                  <div key={idx} className="flex items-center gap-2 bg-amber-50 text-amber-700 px-3 py-1.5 rounded-md text-xs border border-amber-200 shadow-sm animate-in fade-in slide-in-from-bottom-1">
-                    <FileText className="w-3 h-3" />
-                    <span className="max-w-[150px] truncate font-semibold">{file.name}</span>
-                    <X 
-                      className="w-3.5 h-3.5 text-destructive cursor-pointer hover:bg-red-100 rounded-full" 
-                      onClick={(e) => { e.stopPropagation(); removeFile(idx); }} 
+                  <div 
+                    className="border-2 border-dashed border-muted rounded-lg p-4 sm:p-6 hover:bg-muted/30 transition-all cursor-pointer flex flex-col items-center gap-2 group"
+                    onClick={() => document.getElementById('file-upload')?.click()}
+                  >
+                    <Upload className="w-6 sm:w-8 h-6 sm:h-8 text-muted-foreground group-hover:text-primary transition-colors" />
+                    <p className="text-xs sm:text-sm text-muted-foreground text-center">Cliquez pour ajouter</p>
+                    <input 
+                      type="file" 
+                      id="file-upload" 
+                      className="hidden" 
+                      multiple 
+                      accept=".pdf,.xlsx,.xls,image/*" 
+                      onChange={handleFileChange}
                     />
                   </div>
-                ))}
+
+                  {selectedFiles.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Fichiers prêts :</p>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedFiles.map((file, idx) => (
+                          <div key={idx} className="flex items-center gap-2 bg-amber-50 text-amber-700 px-3 py-1.5 rounded-md text-xs border border-amber-200">
+                            <FileText className="w-3 h-3" />
+                            <span className="max-w-[100px] sm:max-w-[150px] truncate text-xs">{file.name}</span>
+                            <X className="w-3 h-3 cursor-pointer hover:bg-red-100 rounded-full" onClick={() => removeFile(idx)} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* ÉQUIPE */}
+                <div className="space-y-2 border-t pt-4">
+                  <Label className="text-muted-foreground text-xs uppercase font-bold">Équipe ({selectedProject.project_members?.length || 0})</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedProject.project_members?.map((m, i) => (
+                      <span key={i} className="bg-secondary/60 border px-2 py-1 rounded-full text-xs font-medium">
+                        {m.profiles.first_name} {m.profiles.last_name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* DESCRIPTION */}
+                <div className="space-y-2 border-t pt-4">
+                  <Label className="text-muted-foreground text-xs uppercase font-bold">Description</Label>
+                  <p className="text-sm border p-3 rounded-md bg-muted/20 whitespace-pre-wrap leading-relaxed">
+                    {selectedProject.description || "Aucune description."}
+                  </p>
+                </div>
+
+                {/* PERFORMANCE */}
+                <div className="space-y-2 border-t pt-4">
+                  <Label className="text-muted-foreground text-xs uppercase font-bold">Performance</Label>
+                  <p className="text-sm border p-3 rounded-md bg-muted/20 whitespace-pre-wrap leading-relaxed italic text-muted-foreground">
+                    {selectedProject.performance_comments || "Aucun commentaire."}
+                  </p>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-
-        {/* ÉQUIPE */}
-        <div className="space-y-2 border-t pt-4">
-          <Label className="text-muted-foreground text-xs uppercase font-bold tracking-tight">Équipe ({selectedProject.project_members?.length || 0} membres)</Label>
-          <div className="flex flex-wrap gap-2">
-            {selectedProject.project_members?.map((m, i) => (
-              <span key={i} className="bg-secondary/60 border px-3 py-1 rounded-full text-xs font-medium">
-                {m.profiles.first_name} {m.profiles.last_name}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {/* DESCRIPTION */}
-        <div className="space-y-2 border-t pt-4">
-          <Label className="text-muted-foreground text-xs uppercase font-bold tracking-tight">Description / Cahier des charges</Label>
-          <p className="text-sm border p-3 rounded-md bg-muted/20 whitespace-pre-wrap Leadsing-relaxed shadow-sm">
-            {selectedProject.description || "Aucune description fournie."}
-          </p>
-        </div>
-
-        {/* PERFORMANCE */}
-        <div className="space-y-2 border-t pt-4">
-          <Label className="text-muted-foreground text-xs uppercase font-bold tracking-tight">Commentaires de performance</Label>
-          <p className="text-sm border p-3 rounded-md bg-muted/20 whitespace-pre-wrap Leadsing-relaxed shadow-sm italic text-muted-foreground">
-            {selectedProject.performance_comments || "Aucun commentaire pour le moment."}
-          </p>
-        </div>
-      </div>
-    )}
-  </DialogContent>
-</Dialog>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
@@ -935,33 +882,32 @@ const ProjectCard = ({
   const hasFiles = project.attachments && project.attachments.length > 0;
   const isMultiFile = project.attachments && project.attachments.length > 1;
 
-  // Fonction pour extraire le nom réel du fichier
   const getFileName = (url: string) => {
     try {
       const decodedUrl = decodeURIComponent(url);
       const parts = decodedUrl.split('/');
       const fileNameWithTimestamp = parts[parts.length - 1];
-      return fileNameWithTimestamp.replace(/^\d+-/, ''); // Enlève le timestamp de Supabase
+      return fileNameWithTimestamp.replace(/^\d+-/, '');
     } catch {
       return "Document";
     }
   };
 
   return (
-    <div className="bg-card rounded-xl border border-border p-6 hover:shadow-md transition-all">
+    <div className="bg-card rounded-xl border border-border p-4 sm:p-6 hover:shadow-md transition-all">
       <div className="flex justify-between items-start mb-4">
-        <div>
+        <div className="flex-1">
           <div className="flex items-center gap-2 mb-1">
             <Globe className="w-3 h-3 text-muted-foreground" />
             <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{project.country}</span>
           </div>
-          <h3 className="font-bold text-lg Leadsing-none">{project.name}</h3>
-          <p className="text-sm text-muted-foreground mt-1">{project.client_name}</p>
+          <h3 className="font-bold text-sm sm:text-lg line-clamp-2">{project.name}</h3>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1 line-clamp-1">{project.client_name}</p>
         </div>
         
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" className="h-8 w-8">
               <MoreHorizontal className="w-4 h-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -986,7 +932,7 @@ const ProjectCard = ({
       </div>
 
       <div className="space-y-4">
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center gap-2">
           <StatusBadge status={project.status} />
           <div className="text-xs text-muted-foreground flex items-center gap-1">
             <Calendar className="w-3 h-3" /> {new Date(project.deadline).toLocaleDateString()}
@@ -997,20 +943,20 @@ const ProjectCard = ({
           <Progress value={project.progress} className="h-1.5" />
         </div>
 
-        <div className="flex items-center justify-between pt-4 border-t">
+        <div className="flex items-center justify-between pt-4 border-t gap-2 flex-wrap">
           <div className="flex -space-x-2">
-            {project.project_members?.slice(0, 4).map((m, i) => (
+            {project.project_members?.slice(0, 3).map((m, i) => (
               <div 
                 key={i} 
                 title={`${m.profiles.first_name} ${m.profiles.last_name}`} 
-                className="w-7 h-7 rounded-full bg-primary/10 border-2 border-card flex items-center justify-center text-[10px] font-bold text-primary uppercase"
+                className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-primary/10 border-2 border-card flex items-center justify-center text-[9px] sm:text-[10px] font-bold text-primary uppercase"
               >
                 {m.profiles.first_name[0]}{m.profiles.last_name[0]}
               </div>
             ))}
-            {project.project_members && project.project_members.length > 4 && (
-              <div className="w-7 h-7 rounded-full bg-muted border-2 border-card flex items-center justify-center text-[10px] font-bold">
-                +{project.project_members.length - 4}
+            {project.project_members && project.project_members.length > 3 && (
+              <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-muted border-2 border-card flex items-center justify-center text-[9px] sm:text-[10px] font-bold">
+                +{project.project_members.length - 3}
               </div>
             )}
           </div>
@@ -1020,13 +966,13 @@ const ProjectCard = ({
               isMultiFile ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-8 px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 gap-1">
-                      <FileText className="w-4 h-4" />
+                    <Button variant="ghost" size="sm" className="h-8 px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 gap-1 text-xs">
+                      <FileText className="w-3 h-3" />
                       <span className="text-[10px] font-bold">{project.attachments?.length}</span>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="max-w-[240px]">
-                    <p className="text-[10px] font-bold text-muted-foreground px-2 py-1.5 uppercase border-b mb-1">Visionner</p>
+                  <DropdownMenuContent align="end" className="max-w-[200px] sm:max-w-[240px]">
+                    <p className="text-[10px] font-bold text-muted-foreground px-2 py-1.5 uppercase border-b mb-1">Fichiers</p>
                     {project.attachments?.map((url, idx) => (
                       <DropdownMenuItem key={idx} onClick={() => window.open(url, '_blank')} className="cursor-pointer text-xs py-2">
                         <FileText className="mr-2 w-3 h-3 text-blue-500 shrink-0" /> 
@@ -1041,7 +987,6 @@ const ProjectCard = ({
                   size="icon" 
                   className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                   onClick={() => window.open(project.attachments![0], '_blank')}
-                  title={getFileName(project.attachments![0])}
                 >
                   <FileText className="w-4 h-4" />
                 </Button>
@@ -1057,4 +1002,5 @@ const ProjectCard = ({
     </div>
   );
 };
+
 export default Projects;
