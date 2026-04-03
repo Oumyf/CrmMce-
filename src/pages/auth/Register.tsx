@@ -20,6 +20,103 @@ const roles = [
   { value: "admin", label: "Administrateur" },
 ];
 
+// ─── MCE Logo SVG Component ──────────────────────────────────────────────
+const MCELogoBeautiful = ({ size = 80 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
+    {/* Outer circle dots */}
+    {([[20,4],[26,5],[32,9],[36,15],[38,20],[36,25],[32,31],[26,35],[20,36],[14,35],[8,31],[4,25],[2,20],[4,15],[8,9],[14,5]] as [number,number][]).map(([cx,cy],i) => (
+      <circle key={`o${i}`} cx={cx} cy={cy} r={1.6} fill={i%3===0?"#00AEEF":"#60D0F8"} />
+    ))}
+    {/* Inner ring dots */}
+    {([[20,10],[27,13],[30,20],[27,27],[20,30],[13,27],[10,20],[13,13]] as [number,number][]).map(([cx,cy],i) => (
+      <circle key={`i${i}`} cx={cx} cy={cy} r={1.2} fill={i%2===0?"#00AEEF":"#60D0F8"} />
+    ))}
+    {/* Center dot */}
+    <circle cx={20} cy={20} r={1.8} fill="#0A6EBD" />
+    {/* MCE text */}
+    <text x="20" y="23" textAnchor="middle" fontSize="6.5" fontWeight="bold" fill="white" fontFamily="sans-serif">MCE</text>
+  </svg>
+);
+
+// ─── MCE AGENCY BEAUTIFUL SECTION ────────────────────────────────────────
+const MCEAgencySection = () => (
+  <div className="hidden lg:flex flex-1 hero-section items-center justify-center p-12 relative overflow-hidden">
+    {/* Background decorative elements */}
+    <div className="absolute inset-0 overflow-hidden">
+      {/* Grid pattern */}
+      <div 
+        className="absolute inset-0 opacity-5"
+        style={{
+          backgroundImage: "linear-gradient(90deg, #00AEEF 1px, transparent 1px), linear-gradient(#00AEEF 1px, transparent 1px)",
+          backgroundSize: "40px 40px",
+        }}
+      />
+      
+      {/* Animated blobs */}
+      <div className="absolute top-1/4 left-10 w-96 h-96 bg-gradient-to-r from-[#00AEEF]/30 to-[#0A6EBD]/20 rounded-full blur-3xl animate-pulse-slow" />
+      <div className="absolute bottom-1/4 right-10 w-96 h-96 bg-gradient-to-l from-[#00AEEF]/20 to-cyan-500/10 rounded-full blur-3xl animate-float" />
+      
+      {/* Glow effect */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-[#00AEEF]/15 rounded-full blur-[100px] opacity-50" />
+    </div>
+
+    {/* Content */}
+    <div className="relative z-10 text-center max-w-md">
+      {/* Logo Container */}
+      <div className="flex justify-center mb-8">
+        <div className="relative group">
+          {/* Outer glow ring */}
+          <div className="absolute inset-0 bg-gradient-to-r from-[#00AEEF] to-cyan-400 rounded-3xl blur-2xl opacity-40 group-hover:opacity-60 transition-opacity duration-500" />
+          
+          {/* Logo box */}
+          <div className="relative w-24 h-24 rounded-3xl bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-xl border border-white/30 flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform duration-500">
+            <MCELogoBeautiful size={56} />
+          </div>
+        </div>
+      </div>
+
+      {/* Title */}
+      <h2 className="text-4xl lg:text-5xl font-bold mb-3 leading-tight">
+        <span className="bg-gradient-to-r from-white via-white to-white/80 bg-clip-text text-transparent">
+          MCE
+        </span>
+        <span className="block bg-gradient-to-r from-[#00AEEF] via-blue-400 to-cyan-300 bg-clip-text text-transparent">
+          Agency
+        </span>
+      </h2>
+
+      {/* Subtitle */}
+      <div className="flex items-center justify-center gap-2 mb-6">
+        <div className="h-1 w-8 bg-gradient-to-r from-[#00AEEF] to-transparent rounded-full" />
+        <span className="text-sm font-semibold text-[#00AEEF] tracking-widest uppercase">Plateforme CRM</span>
+        <div className="h-1 w-8 bg-gradient-to-l from-[#00AEEF] to-transparent rounded-full" />
+      </div>
+
+      {/* Description */}
+      <p className="text-white/70 text-lg leading-relaxed mb-1">
+        Créez votre compte pour rejoindre l'équipe
+      </p>
+      <p className="text-white/60 text-base">
+        et accédez à tous les outils de gestion de l'agence
+      </p>
+
+      {/* Feature badges */}
+      <div className="flex items-center justify-center gap-3 mt-8 pt-6 border-t border-white/10">
+        {[
+          { icon: "⚡", label: "Rapide" },
+          { icon: "🔒", label: "Sécurisé" },
+          { icon: "∞", label: "Scalable" },
+        ].map((feature) => (
+          <div key={feature.label} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur border border-white/20 hover:border-[#00AEEF]/50 transition-all">
+            <span className="text-lg">{feature.icon}</span>
+            <span className="text-xs font-medium text-white/70">{feature.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+);
+
 const Register = () => {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
@@ -67,7 +164,6 @@ const Register = () => {
             last_name: formData.lastName,
             phone: formData.phone,
             role: formData.role,
-            
           },
         },
       });
@@ -88,6 +184,7 @@ const Register = () => {
 
   return (
     <div className="min-h-screen flex">
+      {/* Left side - Form */}
       <div className="flex-1 flex flex-col justify-center px-6 lg:px-20 py-12 overflow-y-auto">
         <div className="w-full max-w-md mx-auto">
           <Link to="/" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-8 transition-colors">
@@ -233,19 +330,8 @@ const Register = () => {
         </div>
       </div>
 
-      <div className="hidden lg:flex flex-1 hero-section items-center justify-center p-12 relative">
-        <div className="relative z-10 text-center text-white max-w-md">
-          <div className="w-20 h-20 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center mx-auto mb-8">
-            <span className="text-3xl font-bold">A</span>
-          </div>
-          <h2 className="text-3xl font-display font-bold mb-4">Bienvenue</h2>
-          <p className="text-white/70">
-            Créez votre compte pour rejoindre l'équipe et accéder à tous les outils de gestion de l'agence.
-          </p>
-        </div>
-        <div className="absolute top-1/4 left-10 w-72 h-72 bg-primary/20 rounded-full blur-3xl animate-pulse-slow" />
-        <div className="absolute bottom-1/4 right-10 w-96 h-96 bg-accent/10 rounded-full blur-3xl animate-float" />
-      </div>
+      {/* Right side - Beautiful MCE Agency Section */}
+      <MCEAgencySection />
     </div>
   );
 };
