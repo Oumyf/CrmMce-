@@ -84,12 +84,10 @@ export default function CalendarPage() {
     reminder_before: "0"
   });
 
-  // ── Vérification connexion Google (une seule fois au montage)
   useEffect(() => {
     checkGoogleConnection();
   }, []);
 
-  // ── Fetch données quand le mois change ou quand googleConnected change
   useEffect(() => {
     fetchData();
   }, [currentDate, googleConnected]);
@@ -182,10 +180,8 @@ export default function CalendarPage() {
       is_overdue: isBefore(new Date(e.start_date), now) && e.type === "deadline"
     }));
 
-    // ✅ Récupérer les événements Google si connecté
     const googleEvents = googleConnected ? await fetchGoogleEvents() : [];
 
-    // ✅ Merger sans doublons
     const allEvents = [
       ...supabaseEvents,
       ...googleEvents.filter(ge => !supabaseEvents.find(se => se.id === ge.id))
@@ -223,7 +219,6 @@ export default function CalendarPage() {
 
       if (error) throw error;
 
-      // ✅ Sync Google Calendar si connecté
       if (googleConnected) {
         const { data: { session } } = await supabase.auth.getSession();
         const token = session?.provider_token;
@@ -256,7 +251,7 @@ export default function CalendarPage() {
         }
       }
 
-      toast.success("Événement ajouté avec succès");
+      toast.success("Événement ajouté");
       setIsModalOpen(false);
       fetchData();
 
@@ -280,69 +275,78 @@ export default function CalendarPage() {
     end: endOfWeek(endOfMonth(currentDate), { weekStartsOn: 1 }),
   });
 
+  // ─── Évènements du jour sélectionné (view mobile) ─────
+  const [selectedDayForMobile, setSelectedDayForMobile] = useState<Date | null>(null);
+  const selectedDayEvents = selectedDayForMobile 
+    ? events.filter(e => isSameDay(new Date(e.start_date), selectedDayForMobile))
+    : [];
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
 
         {/* Popup Retards */}
         <Dialog open={showOverduePopup} onOpenChange={setShowOverduePopup}>
-          <DialogContent>
+          <DialogContent className="w-[95vw] sm:w-full max-w-md">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-destructive">
-                <AlertTriangle /> Échéances dépassées
+              <DialogTitle className="flex items-center gap-2 text-destructive text-base sm:text-lg">
+                <AlertTriangle className="w-5 h-5" /> Échéances dépassées
               </DialogTitle>
             </DialogHeader>
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-[300px] overflow-y-auto">
               {overdueEvents.map(e => (
-                <div key={e.id} className="p-3 bg-red-50 border rounded-md flex justify-between items-center">
-                  <span className="font-medium text-sm">{e.title}</span>
-                  <Badge variant="destructive">Retard</Badge>
+                <div key={e.id} className="p-3 bg-red-50 border rounded-md flex justify-between items-center gap-2">
+                  <span className="font-medium text-xs sm:text-sm line-clamp-1">{e.title}</span>
+                  <Badge variant="destructive" className="text-xs shrink-0">Retard</Badge>
                 </div>
               ))}
             </div>
-            <Button onClick={() => setShowOverduePopup(false)}>Fermer</Button>
+            <Button onClick={() => setShowOverduePopup(false)} className="w-full">Fermer</Button>
           </DialogContent>
         </Dialog>
 
-        {/* Modal Création Événement */}
+        {/* Modal Création Événement - Responsive */}
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-          <DialogContent>
+          <DialogContent className="w-[95vw] sm:w-full max-w-md">
             <DialogHeader>
-              <DialogTitle>Créer un événement</DialogTitle>
+              <DialogTitle className="text-lg">Créer un événement</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-[60vh] overflow-y-auto">
               <div>
-                <Label htmlFor="title">Titre *</Label>
+                <Label htmlFor="title" className="text-sm">Titre *</Label>
                 <Input
                   id="title"
                   placeholder="Titre de l'événement"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  className="h-10 text-sm"
                 />
               </div>
               <div>
-                <Label htmlFor="description">Description</Label>
+                <Label htmlFor="description" className="text-sm">Description</Label>
                 <Textarea
                   id="description"
                   placeholder="Description..."
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   rows={3}
+                  className="text-sm"
                 />
               </div>
               <div>
-                <Label htmlFor="date">Date et heure *</Label>
+                <Label htmlFor="date" className="text-sm">Date et heure *</Label>
                 <Input
                   id="date"
                   type="datetime-local"
                   value={formData.date}
                   onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                  className="h-10 text-sm"
                 />
               </div>
               <div>
-                <Label htmlFor="type">Type *</Label>
+                <Label htmlFor="type" className="text-sm">Type *</Label>
                 <Select value={formData.type} onValueChange={(value) => setFormData({ ...formData, type: value as "task" | "deadline" | "reminder" })}>
-                  <SelectTrigger id="type">
+                  <SelectTrigger id="type" className="h-10">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -353,9 +357,9 @@ export default function CalendarPage() {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="project">Projet</Label>
+                <Label htmlFor="project" className="text-sm">Projet</Label>
                 <Select value={formData.project_id} onValueChange={(value) => setFormData({ ...formData, project_id: value })}>
-                  <SelectTrigger id="project">
+                  <SelectTrigger id="project" className="h-10">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -369,7 +373,7 @@ export default function CalendarPage() {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="reminder">Rappel avant (minutes)</Label>
+                <Label htmlFor="reminder" className="text-sm">Rappel avant (minutes)</Label>
                 <Input
                   id="reminder"
                   type="number"
@@ -377,67 +381,69 @@ export default function CalendarPage() {
                   value={formData.reminder_before}
                   onChange={(e) => setFormData({ ...formData, reminder_before: e.target.value })}
                   min="0"
+                  className="h-10 text-sm"
                 />
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsModalOpen(false)}>
+            <DialogFooter className="gap-2 flex-col-reverse sm:flex-row">
+              <Button variant="outline" onClick={() => setIsModalOpen(false)} className="w-full sm:w-auto">
                 Annuler
               </Button>
-              <Button onClick={handleAddEvent}>
+              <Button onClick={handleAddEvent} className="w-full sm:w-auto">
                 Créer
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
 
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        {/* Header - Responsive */}
+        <div className="flex flex-col gap-3 sm:gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Calendrier</h1>
-            <p className="text-muted-foreground">Gérez vos tâches et deadlines projets.</p>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Calendrier</h1>
+            <p className="text-sm sm:text-base text-muted-foreground">Gérez vos tâches et deadlines.</p>
           </div>
 
-          <div className="flex items-center gap-3">
-
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             {!checkingGoogle && (
               googleConnected ? (
-                <div className="flex items-center gap-2 px-3 py-1 bg-green-50 border border-green-200 rounded-full text-green-700 text-xs font-semibold">
+                <div className="flex items-center justify-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-green-700 text-xs sm:text-sm font-semibold">
                   <CheckCircle2 className="w-4 h-4" />
-                  Google connecté
+                  <span className="hidden sm:inline">Google connecté</span>
+                  <span className="sm:hidden">Connecté</span>
                 </div>
               ) : (
                 <Button
                   variant="outline"
                   onClick={connectGoogle}
-                  className="gap-2 border-blue-200 text-blue-600 hover:bg-blue-50"
+                  className="gap-2 border-blue-200 text-blue-600 hover:bg-blue-50 text-sm"
                 >
                   <Calendar className="w-4 h-4" />
-                  Connecter Google
+                  <span className="hidden sm:inline">Connecter Google</span>
+                  <span className="sm:hidden">Google</span>
                 </Button>
               )
             )}
 
-            <div className="flex bg-card border rounded-lg p-1">
-              <Button variant="ghost" size="icon" onClick={() => setCurrentDate(subMonths(currentDate, 1))}>
+            <div className="flex bg-card border rounded-lg p-1 gap-1">
+              <Button variant="ghost" size="icon" onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="h-8 w-8">
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <div className="px-4 py-1 font-semibold min-w-[140px] text-center capitalize">
-                {format(currentDate, "MMMM yyyy", { locale: fr })}
+              <div className="px-2 sm:px-4 py-1 font-semibold text-xs sm:text-sm min-w-[120px] sm:min-w-[140px] text-center capitalize line-clamp-1">
+                {format(currentDate, "MMM yyyy", { locale: fr })}
               </div>
-              <Button variant="ghost" size="icon" onClick={() => setCurrentDate(addMonths(currentDate, 1))}>
+              <Button variant="ghost" size="icon" onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="h-8 w-8">
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
 
-            <Button onClick={() => setIsModalOpen(true)} className="gap-2 shadow-sm">
+            <Button onClick={() => setIsModalOpen(true)} className="gap-2 shadow-sm w-full sm:w-auto text-sm">
               <Plus className="h-4 w-4" /> Ajouter
             </Button>
           </div>
         </div>
 
-        {/* Calendar Grid */}
-        <div className="bg-card rounded-xl border shadow-sm overflow-hidden">
+        {/* DESKTOP CALENDAR - Hidden on mobile */}
+        <div className="hidden md:block bg-card rounded-xl border shadow-sm overflow-hidden">
           <div className="grid grid-cols-7 border-b bg-muted/30">
             {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map(d => (
               <div key={d} className="p-3 text-center text-xs font-bold text-muted-foreground uppercase tracking-wider">
@@ -476,6 +482,92 @@ export default function CalendarPage() {
                 </div>
               );
             })}
+          </div>
+        </div>
+
+        {/* MOBILE CALENDAR - Alternative view */}
+        <div className="md:hidden space-y-4">
+          {/* Mini calendar */}
+          <div className="bg-card rounded-xl border shadow-sm overflow-hidden">
+            <div className="grid grid-cols-7 border-b bg-muted/30">
+              {["L", "M", "M", "J", "V", "S", "D"].map(d => (
+                <div key={d} className="p-2 text-center text-xs font-bold text-muted-foreground">
+                  {d}
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-7">
+              {days.map((day, idx) => {
+                const dayEvents = events.filter(e => isSameDay(new Date(e.start_date), day));
+                const isToday = isSameDay(day, new Date());
+                const isSelected = selectedDayForMobile && isSameDay(day, selectedDayForMobile);
+
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => setSelectedDayForMobile(day)}
+                    className={`aspect-square flex flex-col items-center justify-center p-1 border-r border-b text-xs font-semibold transition-all ${
+                      !isSameMonth(day, currentDate) ? "bg-muted/5 opacity-40 text-muted-foreground" : ""
+                    } ${isToday ? "bg-primary text-primary-foreground" : ""} ${isSelected && !isToday ? "bg-primary/20 text-primary" : ""} hover:bg-muted/50`}
+                  >
+                    <span>{format(day, "d")}</span>
+                    {dayEvents.length > 0 && <span className="text-[8px] font-bold">{dayEvents.length}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Events for selected day */}
+          {selectedDayForMobile && (
+            <div className="bg-card rounded-xl border shadow-sm p-4">
+              <h3 className="font-bold text-sm mb-3">
+                {format(selectedDayForMobile, "EEEE d MMMM", { locale: fr })}
+              </h3>
+              {selectedDayEvents.length > 0 ? (
+                <div className="space-y-2">
+                  {selectedDayEvents.map(event => (
+                    <div
+                      key={event.id}
+                      className={`p-3 rounded-lg border text-sm ${eventTypeColors[event.type]}`}
+                    >
+                      <div className="flex items-start gap-2">
+                        {event.is_overdue && <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold line-clamp-1">{event.title}</p>
+                          {event.description && <p className="text-xs opacity-80 line-clamp-2 mt-1">{event.description}</p>}
+                          <p className="text-xs opacity-70 mt-1">
+                            {format(new Date(event.start_date), "HH:mm", { locale: fr })}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-6">Aucun événement ce jour</p>
+              )}
+            </div>
+          )}
+
+          {/* List of upcoming events */}
+          <div className="bg-card rounded-xl border shadow-sm p-4">
+            <h3 className="font-bold text-sm mb-3">Événements à venir</h3>
+            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+              {events
+                .filter(e => isAfter(new Date(e.start_date), new Date()))
+                .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
+                .slice(0, 10)
+                .map(event => (
+                  <div key={event.id} className={`p-3 rounded-lg border text-sm ${eventTypeColors[event.type]}`}>
+                    <p className="font-semibold line-clamp-1">{event.title}</p>
+                    <p className="text-xs opacity-70 mt-1">
+                      {format(new Date(event.start_date), "d MMM HH:mm", { locale: fr })}
+                    </p>
+                  </div>
+                ))}
+            </div>
           </div>
         </div>
 
