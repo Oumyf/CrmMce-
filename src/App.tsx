@@ -17,6 +17,7 @@ import Quotes from "./pages/dashboard/Quotes";
 import Recruitment from "./pages/dashboard/Recruitment";
 import Settings from "./pages/dashboard/Settings";
 import Tasks from "./pages/dashboard/Tasks";
+import Users from "./pages/dashboard/Users";
 import Index from "./pages/Index";
 
 // ─── NotFound Page ───────────────────────────────────────────────────────────
@@ -83,6 +84,7 @@ const App = () => (
           <Route path="/dashboard/tasks" element={<Tasks />} />
           <Route path="/dashboard/calendar" element={<CalendarPage />} />
           <Route path="/dashboard/settings" element={<Settings />} />
+          <Route path="/dashboard/users" element={<Users />} />
           <Route path="/dashboard/collaboration" element={<Collaboration />} />
           <Route path="/dashboard/quotes" element={<Quotes />} />
           <Route path="/dashboard/invoices" element={<Invoices />} />

@@ -31,6 +31,11 @@ interface NavItem {
   adminOnly?: boolean;
 }
 
+const isAdminRole = (role?: string | null) => {
+  const normalized = String(role || "").toLowerCase();
+  return normalized === "admin" || normalized === "administrateur";
+};
+
 const navItems: NavItem[] = [
   { icon: <LayoutDashboard className="w-5 h-5" />, label: "Tableau de bord", href: "/dashboard" },
   { icon: <Users className="w-5 h-5" />, label: "Prospect", href: "/dashboard/Leads" },
@@ -72,7 +77,7 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
   const { profile, loading } = useProfile();
 
   const userRole = profile?.role || "user";
-  const isAdmin = userRole === "admin";
+  const isAdmin = isAdminRole(userRole);
   const filteredNavItems = navItems.filter((item) => !item.adminOnly || isAdmin);
 
   // --- LOGIQUE DE REDIRECTION NOTIFICATION ---
@@ -150,6 +155,15 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
         </nav>
 
         <div className="p-3 border-t border-sidebar-border space-y-1">
+          {isAdmin && (
+            <Link
+              to="/dashboard/users"
+              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+            >
+              <Users className="w-5 h-5" />
+              {!collapsed && <span>Utilisateurs</span>}
+            </Link>
+          )}
           <Link 
             to="/dashboard/settings" 
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent transition-colors"

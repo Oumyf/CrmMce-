@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/lib/supabase";
-import { Camera, Loader2, Moon, Sun } from "lucide-react";
+import { Camera, Loader2, Moon, Save, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -15,6 +15,47 @@ const Settings = () => {
     (localStorage.getItem("theme") as "light" | "dark") || "light"
   );
   const [uploading, setUploading] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    first_name: "",
+    last_name: "",
+    phone: "",
+    country: "",
+  });
+
+  useEffect(() => {
+    setProfileForm({
+      first_name: profile?.first_name || "",
+      last_name: profile?.last_name || "",
+      phone: profile?.phone || "",
+      country: profile?.country || "",
+    });
+  }, [profile?.first_name, profile?.last_name, profile?.phone, profile?.country]);
+
+  const handleSaveProfile = async () => {
+    if (!profile?.id) return;
+
+    setSavingProfile(true);
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        first_name: profileForm.first_name,
+        last_name: profileForm.last_name,
+        phone: profileForm.phone,
+        country: profileForm.country,
+      })
+      .eq("id", profile.id);
+
+    if (error) {
+      toast.error("Impossible d'enregistrer vos infos : " + error.message);
+      setSavingProfile(false);
+      return;
+    }
+
+    toast.success("Vos informations ont été mises à jour");
+    setSavingProfile(false);
+    window.location.reload();
+  };
 
   // Gestion du Thème (Noir ou Blanc)
   useEffect(() => {
@@ -77,15 +118,15 @@ const Settings = () => {
       <div className="space-y-8 max-w-4xl">
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground">Paramètres</h1>
-          <p className="text-muted-foreground mt-1">Gérez votre apparence et vos infos personnelles</p>
+          <p className="text-muted-foreground mt-1">Gérez vos infos personnelles et l'apparence de l'application</p>
         </div>
 
         <div className="grid gap-6">
-          {/* Section Profil : Photo et Infos Grisées */}
+          {/* Section Profil : Editable */}
           <Card className="border-border bg-card">
             <CardHeader>
-              <CardTitle>Profil Utilisateur</CardTitle>
-              <CardDescription>Vos informations d'identification (non modifiables).</CardDescription>
+              <CardTitle>Mes informations</CardTitle>
+              <CardDescription>Vos informations personnelles sont modifiables ici.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex items-center gap-6">
@@ -113,19 +154,41 @@ const Settings = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
                 <div className="space-y-2">
                   <Label className="text-muted-foreground">Prénom</Label>
-                  <Input value={profile?.first_name || ""} disabled className="bg-muted/50 border-dashed" />
+                  <Input
+                    value={profileForm.first_name}
+                    onChange={(e) => setProfileForm((prev) => ({ ...prev, first_name: e.target.value }))}
+                    className="bg-background"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-muted-foreground">Nom</Label>
-                  <Input value={profile?.last_name || ""} disabled className="bg-muted/50 border-dashed" />
+                  <Input
+                    value={profileForm.last_name}
+                    onChange={(e) => setProfileForm((prev) => ({ ...prev, last_name: e.target.value }))}
+                    className="bg-background"
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-muted-foreground">Adresse Email</Label>
-                  <Input value={profile?.email || "Non renseigné"} disabled className="bg-muted/50 border-dashed" />
+                  <Label className="text-muted-foreground">Téléphone</Label>
+                  <Input
+                    value={profileForm.phone}
+                    onChange={(e) => setProfileForm((prev) => ({ ...prev, phone: e.target.value }))}
+                    className="bg-background"
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-muted-foreground">Rôle système</Label>
-                  <Input value={profile?.role || ""} disabled className="bg-muted/50 border-dashed capitalize" />
+                  <Label className="text-muted-foreground">Pays</Label>
+                  <Input
+                    value={profileForm.country}
+                    onChange={(e) => setProfileForm((prev) => ({ ...prev, country: e.target.value }))}
+                    className="bg-background"
+                  />
+                </div>
+                <div className="md:col-span-2 flex justify-end">
+                  <Button onClick={handleSaveProfile} disabled={savingProfile || profileLoading} className="gap-2">
+                    <Save className="w-4 h-4" />
+                    {savingProfile ? "Enregistrement..." : "Enregistrer mes infos"}
+                  </Button>
                 </div>
               </div>
             </CardContent>
@@ -158,6 +221,7 @@ const Settings = () => {
               </div>
             </CardContent>
           </Card>
+
         </div>
       </div>
     </DashboardLayout>

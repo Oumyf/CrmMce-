@@ -73,7 +73,12 @@ export function useProfile() {
     return { success: false, error };
   };
 
-  const isAdmin = profile?.role === "admin";
+  const isAdminRole = (role?: string | null) => {
+    const normalized = String(role || "").toLowerCase();
+    return normalized === "admin" || normalized === "administrateur";
+  };
+
+  const isAdmin = isAdminRole(profile?.role);
 
   const displayName =
     profile?.first_name || profile?.last_name

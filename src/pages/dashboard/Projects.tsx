@@ -199,6 +199,11 @@ const Projects = () => {
     country: "Sénégal"
   });
 
+  const isAdminRole = (role?: string | null) => {
+    const normalized = String(role || "").toLowerCase();
+    return normalized === "admin" || normalized === "administrateur";
+  };
+
   const filteredProjects = projects.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                          p.client_name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -208,7 +213,7 @@ const Projects = () => {
   });
 
   const handleDelete = async (project: Project) => {
-    if (userProfile?.role !== 'admin') {
+    if (!isAdminRole(userProfile?.role)) {
       toast.error("Accès refusé : seuls les administrateurs peuvent supprimer un projet.");
       return;
     }
@@ -275,7 +280,7 @@ const Projects = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const isAdmin = userProfile?.role === 'admin';
+    const isAdmin = isAdminRole(userProfile?.role);
     const isMember = selectedProject?.project_members?.some(
       (m: any) => m.profile_id === currentUser?.id
     );
@@ -453,7 +458,7 @@ const Projects = () => {
   };
 
   const handleEdit = (project: Project) => {
-    const isAdmin = userProfile?.role === 'admin';
+    const isAdmin = isAdminRole(userProfile?.role);
     const isMember = project.project_members?.some(
       (m: any) => m.profile_id === currentUser?.id
     );
@@ -500,7 +505,7 @@ const Projects = () => {
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Projets</h1>
             <p className="text-sm sm:text-base text-muted-foreground mt-1">Suivi des livrables et performance.</p>
           </div>
-          {userProfile?.role === 'admin' && (
+          {isAdminRole(userProfile?.role) && (
             <Button onClick={() => { resetForm(); setIsDialogOpen(true); }} className="gap-2 bg-primary w-full sm:w-auto">
               <Plus className="w-4 h-4" /> Nouveau projet
             </Button>
@@ -529,7 +534,7 @@ const Projects = () => {
         {/* Grid - Responsive */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {filteredProjects.map((project) => {
-            const isAdmin = userProfile?.role === 'admin';
+            const isAdmin = isAdminRole(userProfile?.role);
             const isMember = project.project_members?.some(
               (m: any) => m.profile_id === currentUser?.id
             );

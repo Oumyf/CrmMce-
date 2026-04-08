@@ -115,6 +115,8 @@ const Login = () => {
   });
   const [isLoading, setIsLoading] = useState(false);
 
+  const isDeletedProfile = (profile: any) => String(profile?.role ?? "").toLowerCase() === "deleted";
+
   // ─── Prefetch données du dashboard ──
   const prefetchDashboardData = async (userId: string) => {
     try {
@@ -210,6 +212,17 @@ const Login = () => {
       }
 
       if (data.user) {
+        const { data: loginProfile } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", data.user.id)
+          .single();
+
+        if (loginProfile && isDeletedProfile(loginProfile)) {
+          await supabase.auth.signOut();
+          throw new Error("Votre compte a été supprimé. Contactez un administrateur.");
+        }
+
         toast.success("Content de vous revoir !");
 
         // ✅ PREFETCH les données AVANT de rediriger

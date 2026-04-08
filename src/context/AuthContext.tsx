@@ -6,7 +6,7 @@ type Profile = {
   first_name: string;
   last_name: string;
   phone: string;
-  role: "admin" | "developer" | "commercial";
+  role: "admin" | "developer" | "commercial" | "deleted";
 };
 
 type AuthContextType = {
