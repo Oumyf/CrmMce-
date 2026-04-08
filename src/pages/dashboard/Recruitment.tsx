@@ -623,7 +623,7 @@ const Recruitment = () => {
                       {formData.last_name?.charAt(0)}
                     </AvatarFallback>
                   </Avatar>
-                  <Button variant="outline" size="sm" className="gap-2" disabled={isProfileSelected}>
+                  <Button variant="outline" size="sm" className="gap-2">
                     <Upload className="w-4 h-4" />
                     <label className="cursor-pointer">
                       Importer une photo
@@ -631,14 +631,10 @@ const Recruitment = () => {
                         type="file"
                         accept="image/*"
                         onChange={handlePhotoUpload}
-                        disabled={isProfileSelected}
                         className="hidden"
                       />
                     </label>
                   </Button>
-                  {isProfileSelected && (
-                    <p className="text-xs text-muted-foreground">Photo verrouillée (profil existant sélectionné)</p>
-                  )}
                 </div>
 
                 {/* INFORMATIONS PERSONNELLES */}
@@ -703,7 +699,6 @@ const Recruitment = () => {
                     <Label>Pays *</Label>
                     <Select
                       value={formData.country || ""}
-                      disabled={isProfileSelected}
                       onValueChange={(value) =>
                         setFormData({ ...formData, country: value })
                       }
