@@ -2,23 +2,36 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Link, Route, Routes } from "react-router-dom";
 
+// ✅ PAGES PUBLIQUES - Chargement immédiat (critiques)
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
-import CalendarPage from "./pages/dashboard/CalendarPage";
-import Clients from "./pages/dashboard/Clients";
-import Collaboration from "./pages/dashboard/Collaboration";
-import Dashboard from "./pages/dashboard/Dashboard";
-import Invoices from "./pages/dashboard/Invoices";
-import Leads from "./pages/dashboard/Leads";
-import Projects from "./pages/dashboard/Projects";
-import Quotes from "./pages/dashboard/Quotes";
-import Recruitment from "./pages/dashboard/Recruitment";
-import Settings from "./pages/dashboard/Settings";
-import Tasks from "./pages/dashboard/Tasks";
-import Users from "./pages/dashboard/Users";
 import Index from "./pages/Index";
+
+// ✅ PAGES DASHBOARD - Lazy loading (ne charge que quand nécessaire)
+const Dashboard = lazy(() => import("./pages/dashboard/Dashboard"));
+const Leads = lazy(() => import("./pages/dashboard/Leads"));
+const Clients = lazy(() => import("./pages/dashboard/Clients"));
+const Projects = lazy(() => import("./pages/dashboard/Projects"));
+const Tasks = lazy(() => import("./pages/dashboard/Tasks"));
+const CalendarPage = lazy(() => import("./pages/dashboard/CalendarPage"));
+const Settings = lazy(() => import("./pages/dashboard/Settings"));
+const Users = lazy(() => import("./pages/dashboard/Users"));
+const Collaboration = lazy(() => import("./pages/dashboard/Collaboration"));
+const Quotes = lazy(() => import("./pages/dashboard/Quotes"));
+const Invoices = lazy(() => import("./pages/dashboard/Invoices"));
+const Recruitment = lazy(() => import("./pages/dashboard/Recruitment"));
+
+// ─── Loading Fallback ────────────────────────────────────────────────────────
+const LoadingFallback = () => (
+  <div className="flex flex-col items-center justify-center h-screen bg-background">
+    <Loader2 className="w-10 h-10 animate-spin text-primary mb-4" />
+    <p className="text-sm text-muted-foreground font-medium">Chargement...</p>
+  </div>
+);
 
 // ─── NotFound Page ───────────────────────────────────────────────────────────
 const NotFound = () => (
@@ -34,29 +47,15 @@ const NotFound = () => (
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // ✅ CACHE : Garder les données en cache pendant 10 minutes
-      staleTime: 10 * 60 * 1000, // 10 minutes
-      
-      // ✅ MEMORY : Garder les données en mémoire pendant 15 minutes après la dernière utilisation
-      gcTime: 15 * 60 * 1000, // Ancien "cacheTime"
-      
-      // ✅ REFETCH : Refetch au focus de la fenêtre si données stale
+      staleTime: 10 * 60 * 1000,
+      gcTime: 15 * 60 * 1000,
       refetchOnWindowFocus: true,
-      
-      // ✅ REFETCH : Refetch au remontage du composant si données stale
       refetchOnMount: true,
-      
-      // ✅ REFETCH : Refetch à la reconnexion réseau si données stale
       refetchOnReconnect: true,
-      
-      // ✅ RETRY : Réessayer 2 fois en cas d'erreur (au lieu de 3)
       retry: 2,
-      
-      // ✅ RETRY DELAY : Attendre 1 seconde entre les tentatives
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     },
     mutations: {
-      // ✅ Réessayer 1 fois en cas d'erreur
       retry: 1,
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     },
@@ -70,29 +69,31 @@ const App = () => (
       <Toaster />
       <Sonner position="bottom-right" richColors closeButton />
       <BrowserRouter>
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/" element={<Index />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+        <Suspense fallback={<LoadingFallback />}>
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/" element={<Index />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
 
-          {/* Dashboard Routes */}
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/dashboard/leads" element={<Leads />} />
-          <Route path="/dashboard/clients" element={<Clients />} />
-          <Route path="/dashboard/projects" element={<Projects />} />
-          <Route path="/dashboard/tasks" element={<Tasks />} />
-          <Route path="/dashboard/calendar" element={<CalendarPage />} />
-          <Route path="/dashboard/settings" element={<Settings />} />
-          <Route path="/dashboard/users" element={<Users />} />
-          <Route path="/dashboard/collaboration" element={<Collaboration />} />
-          <Route path="/dashboard/quotes" element={<Quotes />} />
-          <Route path="/dashboard/invoices" element={<Invoices />} />
-          <Route path="/dashboard/recruitment" element={<Recruitment />} />
+            {/* Dashboard Routes */}
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/dashboard/leads" element={<Leads />} />
+            <Route path="/dashboard/clients" element={<Clients />} />
+            <Route path="/dashboard/projects" element={<Projects />} />
+            <Route path="/dashboard/tasks" element={<Tasks />} />
+            <Route path="/dashboard/calendar" element={<CalendarPage />} />
+            <Route path="/dashboard/settings" element={<Settings />} />
+            <Route path="/dashboard/users" element={<Users />} />
+            <Route path="/dashboard/collaboration" element={<Collaboration />} />
+            <Route path="/dashboard/quotes" element={<Quotes />} />
+            <Route path="/dashboard/invoices" element={<Invoices />} />
+            <Route path="/dashboard/recruitment" element={<Recruitment />} />
 
-          {/* 404 Fallback */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+            {/* 404 Fallback */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Suspense>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
