@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 
 export type Profile = {
   id: string;
@@ -27,16 +27,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Guard : empêche deux appels loadProfile simultanés pour le même utilisateur
+  // (race condition entre onAuthStateChange INITIAL_SESSION et getSession)
+  const loadingForUserId = useRef<string | null>(null);
+
   // ── Charger le profil depuis la table profiles ────────────────────────────
   const loadProfile = async (u: User) => {
-    // Timeout 5s : si Supabase DB est en pause ou lente, on utilise le fallback
-    // plutôt que d'attendre indéfiniment.
     const profileQuery = supabase
       .from("profiles")
       .select("id, first_name, last_name, phone, role, avatar_url")
       .eq("id", u.id)
       .single();
 
+    // Timeout 5s — évite de bloquer indéfiniment si DB lente ou en pause
     const timeoutPromise = new Promise<{ data: null; error: Error }>((resolve) =>
       setTimeout(
         () => resolve({ data: null, error: new Error("profile_timeout") }),
@@ -51,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data = result.data;
       error = result.error;
     } catch (e) {
-      // AbortError ou erreur réseau → on utilise le fallback JWT
+      // AbortError ou erreur réseau → fallback JWT
       error = e;
     }
 
@@ -104,57 +107,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // ── 1. getSession — lecture du cache (instantanée, pas de réseau) ─────────
-    // Stoppe le loading IMMÉDIATEMENT pour que ProtectedRoute ne reste pas
-    // bloqué indéfiniment même si loadProfile est lente en production.
-    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
-      if (!mounted) return;
-
-      if (error) {
-        console.warn("AuthContext: session invalide, nettoyage →", error.message);
-        await supabase.auth.signOut();
-        setLoading(false);
-        return;
-      }
-
-      if (session?.user) {
-        // Rendre l'utilisateur disponible tout de suite pour ProtectedRoute
-        setUser(session.user);
-        // Charger le profil en arrière-plan (ne bloque PAS le loading)
-        loadProfile(session.user).catch((err) =>
-          console.error("AuthContext: loadProfile initial", err)
-        );
-      }
-
-      // Toujours stopper le loading après getSession (cache = rapide)
-      setLoading(false);
-    });
-
-    // ── 2. onAuthStateChange — événements en temps réel ───────────────────────
-    // Gère les redirects OAuth, refreshes de token, déconnexions.
+    // ── onAuthStateChange — SOURCE UNIQUE de vérité ───────────────────────────
+    // Couvre INITIAL_SESSION (session en cache), SIGNED_IN, TOKEN_REFRESHED,
+    // SIGNED_OUT. Pas besoin d'un getSession() séparé qui causerait un double
+    // appel de loadProfile (→ AbortError sur la première requête).
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (!mounted) return;
 
         if (session?.user) {
           setUser(session.user);
-          // Charger le profil en arrière-plan — ne bloque PAS setLoading(false)
-          loadProfile(session.user).catch((err) =>
-            console.error("AuthContext: erreur loadProfile", err)
-          );
+
+          // Charger le profil UNE SEULE FOIS par utilisateur (guard anti-double-appel)
+          if (loadingForUserId.current !== session.user.id) {
+            loadingForUserId.current = session.user.id;
+            loadProfile(session.user)
+              .catch((err) => console.error("AuthContext: loadProfile error", err))
+              .finally(() => {
+                // Libérer le guard pour permettre un refreshProfile ultérieur
+                if (loadingForUserId.current === session.user.id) {
+                  loadingForUserId.current = null;
+                }
+              });
+          }
         } else if (event === "SIGNED_OUT") {
           setUser(null);
           setProfile(null);
+          loadingForUserId.current = null;
         }
 
-        // Forcer loading=false IMMÉDIATEMENT pour tous les événements
+        // setLoading(false) IMMÉDIATEMENT — ne pas attendre loadProfile
         setLoading(false);
       }
     );
 
+    // ── Timer de sécurité ─────────────────────────────────────────────────────
+    // Si onAuthStateChange ne se déclenche pas dans les 3 premières secondes
+    // (rare mais possible), on force loading=false pour éviter tout blocage.
+    const safetyTimer = setTimeout(() => {
+      if (mounted) setLoading(false);
+    }, 3000);
+
     return () => {
       mounted = false;
       subscription.unsubscribe();
+      clearTimeout(safetyTimer);
     };
   }, []);
 
@@ -165,7 +162,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const refreshProfile = async () => {
-    if (user) await loadProfile(user);
+    if (user) {
+      loadingForUserId.current = null; // forcer le rechargement
+      await loadProfile(user);
+    }
   };
 
   return (
