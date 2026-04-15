@@ -35,9 +35,22 @@ export const supabase = createClient(
     auth: {
       persistSession: true,
       storage: safeStorage(),
-      storageKey: "crm-mce-auth",       // clé unique → évite les conflits entre comptes Google
-      autoRefreshToken: true,            // renouvelle le token automatiquement
-      detectSessionInUrl: true,          // détecte le token après redirect OAuth
+      storageKey: "crm-mce-auth",
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
+    realtime: {
+      params: {
+        eventsPerSecond: 2,
+      },
+    },
+    global: {
+      headers: {
+        "X-Client-Info": "mce-crm",
+      },
+    },
+    db: {
+      schema: "public",
     },
   }
 );

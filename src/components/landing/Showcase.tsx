@@ -1,5 +1,5 @@
-import { ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { ExternalLink } from "lucide-react";
 
 interface ShowcaseProject {
   id: string;
@@ -26,7 +26,7 @@ const projects: ShowcaseProject[] = [
     id: "1",
 
     name: "Teranga-express",
-    image: "public/Lovable App - Google Chrome 03-04-26 01_59_50.png",
+    image: "/images/dashboard-1.png",
     url: "https://teranga-express.com/",
 
   
@@ -37,7 +37,7 @@ const projects: ShowcaseProject[] = [
     id: "2",
 
     name: "panafricacreperie",
-    image: "public/Lovable App - Google Chrome 03-04-26 02_00_50.png",
+    image: "/images/dashboard-2.png",
     url: "https://panafricacreperie.com/",
 
    
@@ -48,14 +48,14 @@ const projects: ShowcaseProject[] = [
     id: "3",
 
     name: "lehainnov",
-    image: "public/Lovable App - Google Chrome 03-04-26 02_01_57.png",
+    image: "/images/dashboard-3.png",
     url: "https://lehainnov.com/",
     status: "realise",
   },
   {
     id: "4",
     name: "AMANYA",
-    image: "public/Lovable App - Google Chrome 03-04-26 02_02_34.png",
+    image: "/images/dashboard-4.png",
     url: "https://moda-sn.com/",
     status: "realise",
 

@@ -41,8 +41,6 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type InvoiceStatus = "draft" | "pending" | "paid" | "overdue";
@@ -559,39 +557,53 @@ export default function Invoices() {
     }
   };
 
-  const handleDownloadPDF = async () => {
-    if (!selectedInvoice || !printRef.current) return;
-    setDownloading(true);
+  // ❌ SUPPRIMEZ ces imports en haut du fichier :
+// import jsPDF from "jspdf";
+// import html2canvas from "html2canvas";
 
-    try {
-      const canvas = await html2canvas(printRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-        logging: false,
-      });
-      const img = canvas.toDataURL("image/png");
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const pw = pdf.internal.pageSize.getWidth();
-      const ph = pdf.internal.pageSize.getHeight();
-      const ratio = pw / canvas.width;
-      const drawH = canvas.height * ratio;
+// ... reste du code ...
 
-      let y = 0;
-      while (y < drawH) {
-        if (y > 0) pdf.addPage();
-        pdf.addImage(img, "PNG", 0, -y, pw, drawH);
-        y += ph;
-      }
+// ✅ REMPLACEZ la fonction handleDownloadPDF par :
+const handleDownloadPDF = async () => {
+  if (!selectedInvoice || !printRef.current) return;
+  setDownloading(true);
 
-      pdf.save(`${selectedInvoice.num}.pdf`);
-      toast.success("PDF téléchargé");
-    } catch (error) {
-      toast.error("Erreur lors de la génération du PDF");
-    } finally {
-      setDownloading(false);
+  try {
+    // 🚀 Chargement dynamique des bibliothèques lourdes
+    const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+      import("html2canvas"),
+      import("jspdf"),
+    ]);
+
+    const canvas = await html2canvas(printRef.current, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      logging: false,
+    });
+    
+    const img = canvas.toDataURL("image/png");
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pw = pdf.internal.pageSize.getWidth();
+    const ph = pdf.internal.pageSize.getHeight();
+    const ratio = pw / canvas.width;
+    const drawH = canvas.height * ratio;
+
+    let y = 0;
+    while (y < drawH) {
+      if (y > 0) pdf.addPage();
+      pdf.addImage(img, "PNG", 0, -y, pw, drawH);
+      y += ph;
     }
-  };
+
+    pdf.save(`${selectedInvoice.num}.pdf`);
+    toast.success("PDF téléchargé");
+  } catch (error) {
+    toast.error("Erreur lors de la génération du PDF");
+  } finally {
+    setDownloading(false);
+  }
+};
 
   const updateLine = (i: number, field: keyof InvoiceLine, value: string | number) => {
     setEditLines((prev) =>
