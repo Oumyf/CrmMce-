@@ -44,10 +44,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       )
     );
 
-    const { data, error } = await Promise.race([profileQuery, timeoutPromise]) as {
-      data: any;
-      error: any;
-    };
+    let data: any = null;
+    let error: any = null;
+    try {
+      const result = await Promise.race([profileQuery, timeoutPromise]) as { data: any; error: any };
+      data = result.data;
+      error = result.error;
+    } catch (e) {
+      // AbortError ou erreur réseau → on utilise le fallback JWT
+      error = e;
+    }
 
     if (!error && data) {
       setProfile({
