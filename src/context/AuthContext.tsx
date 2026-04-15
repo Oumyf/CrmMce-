@@ -133,22 +133,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // ── 2. onAuthStateChange — événements en temps réel ───────────────────────
     // Gère les redirects OAuth, refreshes de token, déconnexions.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         if (!mounted) return;
 
         if (session?.user) {
           setUser(session.user);
-          try {
-            await loadProfile(session.user);
-          } catch (err) {
-            console.error("AuthContext: erreur loadProfile", err);
-          }
+          // Charger le profil en arrière-plan — ne bloque PAS setLoading(false)
+          loadProfile(session.user).catch((err) =>
+            console.error("AuthContext: erreur loadProfile", err)
+          );
         } else if (event === "SIGNED_OUT") {
           setUser(null);
           setProfile(null);
         }
 
-        // Forcer loading=false pour tous les événements (SIGNED_IN après OAuth, etc.)
+        // Forcer loading=false IMMÉDIATEMENT pour tous les événements
         setLoading(false);
       }
     );
