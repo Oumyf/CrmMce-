@@ -78,32 +78,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // ── 1. Lire la session déjà stockée dans localStorage (instantané) ───────
-    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
-      if (!mounted) return;
-
-      if (error) {
-        // Session corrompue ou refresh token expiré → forcer une déconnexion
-        // propre pour éviter que le client reste bloqué en mode normal.
-        console.warn("AuthContext: session invalide, nettoyage →", error.message);
-        await supabase.auth.signOut();
-        setLoading(false);
-        return;
-      }
-
-      if (session?.user) {
-        setUser(session.user);
-        try {
-          await loadProfile(session.user);
-        } catch (err) {
-          console.error("AuthContext: erreur loadProfile initial", err);
-        }
-      }
-      // Dans tous les cas on arrête le loading après getSession
-      setLoading(false);
-    });
-
-    // ── 2. Écouter les changements (redirect OAuth, refresh token, logout) ───
+    // ── onAuthStateChange est la source unique de vérité ─────────────────────
+    // Il fire INITIAL_SESSION immédiatement avec la session en cache,
+    // puis SIGNED_IN / TOKEN_REFRESHED / SIGNED_OUT selon les événements.
+    // On n'appelle loadProfile QUE depuis ici pour éviter le double appel.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return;
@@ -116,17 +94,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             console.error("AuthContext: erreur loadProfile", err);
           }
         } else if (event === "SIGNED_OUT") {
-          // N'effacer le profil QUE sur une déconnexion explicite,
-          // pas sur un token refresh intermédiaire avec session transitoire null
           setUser(null);
           setProfile(null);
         }
 
-        // Forcer loading=false pour TOUS les événements auth (TOKEN_REFRESHED,
-        // INITIAL_SESSION, USER_UPDATED, etc.) — pas seulement SIGNED_IN/OUT
         setLoading(false);
       }
     );
+
+    // ── getSession sert uniquement à stopper le loading si pas de session ────
+    // (cas navigation privée, premier visit sans session stockée)
+    // Si une session existe, INITIAL_SESSION ci-dessus la gère déjà.
+    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
+      if (!mounted) return;
+
+      if (error) {
+        console.warn("AuthContext: session invalide, nettoyage →", error.message);
+        await supabase.auth.signOut();
+        setLoading(false);
+        return;
+      }
+
+      // Pas de session → arrêter le loading immédiatement (redirect vers /login)
+      if (!session) {
+        setLoading(false);
+      }
+      // Si session présente : INITIAL_SESSION s'en charge, pas besoin d'agir ici
+    });
 
     return () => {
       mounted = false;
