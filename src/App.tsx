@@ -1,3 +1,4 @@
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -76,19 +77,19 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
 
-            {/* Dashboard Routes */}
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/dashboard/leads" element={<Leads />} />
-            <Route path="/dashboard/clients" element={<Clients />} />
-            <Route path="/dashboard/projects" element={<Projects />} />
-            <Route path="/dashboard/tasks" element={<Tasks />} />
-            <Route path="/dashboard/calendar" element={<CalendarPage />} />
-            <Route path="/dashboard/settings" element={<Settings />} />
-            <Route path="/dashboard/users" element={<Users />} />
-            <Route path="/dashboard/collaboration" element={<Collaboration />} />
-            <Route path="/dashboard/quotes" element={<Quotes />} />
-            <Route path="/dashboard/invoices" element={<Invoices />} />
-            <Route path="/dashboard/recruitment" element={<Recruitment />} />
+            {/* Dashboard Routes — protégées */}
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/dashboard/leads" element={<ProtectedRoute><Leads /></ProtectedRoute>} />
+            <Route path="/dashboard/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
+            <Route path="/dashboard/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
+            <Route path="/dashboard/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
+            <Route path="/dashboard/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
+            <Route path="/dashboard/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+            <Route path="/dashboard/users" element={<ProtectedRoute><Users /></ProtectedRoute>} />
+            <Route path="/dashboard/collaboration" element={<ProtectedRoute><Collaboration /></ProtectedRoute>} />
+            <Route path="/dashboard/quotes" element={<ProtectedRoute><Quotes /></ProtectedRoute>} />
+            <Route path="/dashboard/invoices" element={<ProtectedRoute><Invoices /></ProtectedRoute>} />
+            <Route path="/dashboard/recruitment" element={<ProtectedRoute><Recruitment /></ProtectedRoute>} />
 
             {/* 404 Fallback */}
             <Route path="*" element={<NotFound />} />
