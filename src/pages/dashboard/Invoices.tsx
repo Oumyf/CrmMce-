@@ -859,7 +859,7 @@ const handleDownloadPDF = async () => {
                 </div>
               </div>
 
-              <div className="space-y-2 relative">
+              <div className="space-y-2">
                 <Label className="font-semibold">Client</Label>
                 <Input
                   name="client"
@@ -876,12 +876,12 @@ const handleDownloadPDF = async () => {
                   required
                 />
                 {showInvoiceClientSuggestions && invoiceClientSuggestions.length > 0 && (
-                  <div className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-md shadow-lg overflow-hidden">
+                  <div className="mt-1 border border-border rounded-md overflow-hidden divide-y divide-border">
                     {invoiceClientSuggestions.map((c) => (
                       <button
                         key={c.id}
                         type="button"
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors flex items-center justify-between"
                         onMouseDown={() => {
                           const fullName = `${c.first_name} ${c.last_name}`;
                           setInvoiceClientSearch(fullName);
@@ -890,7 +890,7 @@ const handleDownloadPDF = async () => {
                         }}
                       >
                         <span className="font-medium">{c.first_name} {c.last_name}</span>
-                        {c.country && <span className="ml-2 text-xs text-muted-foreground">{c.country}</span>}
+                        {c.country && <span className="text-xs text-muted-foreground">{c.country}</span>}
                       </button>
                     ))}
                   </div>
@@ -1062,16 +1062,14 @@ const handleDownloadPDF = async () => {
         </Dialog>
 
         {/* HISTORIQUE */}
-        <div className="mt-6 border rounded-xl bg-card">
-          <details>
-            <summary className="flex items-center gap-2 p-4 cursor-pointer font-semibold text-sm select-none">
-              <History className="w-4 h-4 text-muted-foreground" />
-              Historique des factures
-            </summary>
-            <div className="px-4 pb-4">
-              <HistoryPanel entityType="invoice" />
-            </div>
-          </details>
+        <div className="mt-6 border rounded-xl bg-card overflow-hidden">
+          <div className="flex items-center gap-2 p-4 border-b">
+            <History className="w-4 h-4 text-primary" />
+            <h2 className="font-semibold text-sm">Historique des factures</h2>
+          </div>
+          <div className="p-4">
+            <HistoryPanel entityType="invoice" />
+          </div>
         </div>
       </div>
     </DashboardLayout>

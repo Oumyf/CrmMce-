@@ -26,9 +26,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useAuth } from "@/context/AuthContext";
 import { logActivity } from "@/lib/activityLog";
 import { HistoryPanel } from "@/components/shared/HistoryPanel";
+import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/lib/supabase";
 // Remplacez votre ligne lucide-react par celle-ci
 import { Eye, FileText, FileUp, History, Loader2, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
@@ -71,8 +71,7 @@ const countryPrefixes: { [key: string]: string } = {
 };
 
 const Clients = () => {
-  const { profile: authProfile } = useAuth();
-  const isAdmin = authProfile?.role === "admin";
+  const { isAdmin } = useProfile();
 
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -665,16 +664,14 @@ const columns: Column<Client>[] = [
         )}
 
         {/* ── Historique ─────────────────────────────────────────────────── */}
-        <div className="mt-6 border rounded-xl bg-card">
-          <details>
-            <summary className="flex items-center gap-2 p-4 cursor-pointer font-semibold text-sm select-none">
-              <History className="w-4 h-4 text-muted-foreground" />
-              Historique des modifications clients
-            </summary>
-            <div className="px-4 pb-4">
-              <HistoryPanel entityType="client" />
-            </div>
-          </details>
+        <div className="mt-6 border rounded-xl bg-card overflow-hidden">
+          <div className="flex items-center gap-2 p-4 border-b">
+            <History className="w-4 h-4 text-primary" />
+            <h2 className="font-semibold text-sm">Historique des modifications clients</h2>
+          </div>
+          <div className="p-4">
+            <HistoryPanel entityType="client" />
+          </div>
         </div>
       </div>
     </DashboardLayout>

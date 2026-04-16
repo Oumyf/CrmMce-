@@ -55,6 +55,7 @@ import {
   X,
   Download,
   RefreshCw,
+  History as HistoryIcon,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { HistoryPanel } from "@/components/shared/HistoryPanel";
@@ -1390,16 +1391,14 @@ const Recruitment = () => {
       </AlertDialog>
 
       {/* HISTORIQUE */}
-      <div className="mt-6 border rounded-xl bg-white">
-        <details>
-          <summary className="flex items-center gap-2 p-4 cursor-pointer font-semibold text-sm select-none">
-            <History className="w-4 h-4 text-muted-foreground" />
-            Historique des salariés
-          </summary>
-          <div className="px-4 pb-4">
-            <HistoryPanel entityType="recruitment" />
-          </div>
-        </details>
+      <div className="mt-6 border rounded-xl bg-card overflow-hidden">
+        <div className="flex items-center gap-2 p-4 border-b">
+          <HistoryIcon className="w-4 h-4 text-primary" />
+          <h2 className="font-semibold text-sm">Historique des salariés</h2>
+        </div>
+        <div className="p-4">
+          <HistoryPanel entityType="recruitment" />
+        </div>
       </div>
     </DashboardLayout>
   );

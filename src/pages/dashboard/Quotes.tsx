@@ -577,7 +577,7 @@ const Quotes = () => {
                   Nouveau devis
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="overflow-visible">
                 <DialogHeader>
                   <DialogTitle>Créer un nouveau devis</DialogTitle>
                 </DialogHeader>
@@ -592,7 +592,7 @@ const Quotes = () => {
                       }
                     />
                   </div>
-                  <div className="relative">
+                  <div>
                     <Label>Client</Label>
                     <Input
                       placeholder="Rechercher un client existant..."
@@ -607,12 +607,12 @@ const Quotes = () => {
                       autoComplete="off"
                     />
                     {showClientSuggestions && clientSuggestions.length > 0 && (
-                      <div className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-md shadow-lg overflow-hidden">
+                      <div className="mt-1 border border-border rounded-md overflow-hidden divide-y divide-border">
                         {clientSuggestions.map((c) => (
                           <button
                             key={c.id}
                             type="button"
-                            className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors flex items-center justify-between"
                             onMouseDown={() => {
                               const fullName = `${c.first_name} ${c.last_name}`;
                               setNewQuote({
@@ -626,7 +626,7 @@ const Quotes = () => {
                             }}
                           >
                             <span className="font-medium">{c.first_name} {c.last_name}</span>
-                            {c.country && <span className="ml-2 text-xs text-muted-foreground">{c.country}</span>}
+                            {c.country && <span className="text-xs text-muted-foreground">{c.country}</span>}
                           </button>
                         ))}
                       </div>
@@ -1120,16 +1120,14 @@ const Quotes = () => {
       </div>
 
       {/* HISTORIQUE */}
-      <div className="mt-6 border rounded-xl bg-card">
-        <details>
-          <summary className="flex items-center gap-2 p-4 cursor-pointer font-semibold text-sm select-none">
-            <History className="w-4 h-4 text-muted-foreground" />
-            Historique des devis
-          </summary>
-          <div className="px-4 pb-4">
-            <HistoryPanel entityType="quote" />
-          </div>
-        </details>
+      <div className="mt-6 border rounded-xl bg-card overflow-hidden">
+        <div className="flex items-center gap-2 p-4 border-b">
+          <History className="w-4 h-4 text-primary" />
+          <h2 className="font-semibold text-sm">Historique des devis</h2>
+        </div>
+        <div className="p-4">
+          <HistoryPanel entityType="quote" />
+        </div>
       </div>
 
       {/* DIALOG DE SUPPRESSION */}

@@ -27,9 +27,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useAuth } from "@/context/AuthContext";
 import { HistoryPanel } from "@/components/shared/HistoryPanel";
 import { logActivity } from "@/lib/activityLog";
+import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/lib/supabase"; // SUPABASE: Import du client
 import {
   AlertCircle,
@@ -37,7 +37,7 @@ import {
   FileText, // Ajoute-le ici
   Flag,
   FolderDot,
-  History,
+  History as HistoryIcon,
   Lock,
   MoreHorizontal,
   Paperclip, // Il est déjà là, donc ne le rajoute pas en bas
@@ -67,15 +67,14 @@ interface Task {
 }
 
 const Tasks = () => {
-  const { profile: authProfile } = useAuth();
-  const isAdmin = authProfile?.role === "admin";
+  const { isAdmin } = useProfile();
 
   // En situation réelle, on récupèrerait l'id depuis supabase.auth.getSession()
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string }>({
     id: "",
     name: "Chargement...",
   });
-  
+
   const [availableProjects, setAvailableProjects] = useState<{id: string, name: string}[]>([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -83,8 +82,6 @@ const Tasks = () => {
   const [selectedCountry, setSelectedCountry] = useState("all");
   const [isLoading, setIsLoading] = useState(true); // SUPABASE: État de chargement
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [showHistory, setShowHistory] = useState(false);
-  const [historyLogs, setHistoryLogs] = useState<any[]>([]); 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     name: "",
