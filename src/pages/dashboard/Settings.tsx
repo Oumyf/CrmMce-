@@ -20,11 +20,10 @@ const Settings = () => {
   const [profileForm, setProfileForm] = useState({
     first_name: "",
     last_name: "",
-    first_name: "",
-    last_name: "",
     phone: "",
   });
   const [passwordForm, setPasswordForm] = useState({
+    currentPassword: "",
     newPassword: "",
     confirmNewPassword: "",
   });
@@ -63,9 +62,9 @@ const Settings = () => {
   };
 
   const handleChangePassword = async () => {
-    const { newPassword, confirmNewPassword } = passwordForm;
+    const { currentPassword, newPassword, confirmNewPassword } = passwordForm;
 
-    if (!newPassword || !confirmNewPassword) {
+    if (!currentPassword || !newPassword || !confirmNewPassword) {
       toast.error("Veuillez remplir tous les champs du mot de passe.");
       return;
     }
@@ -83,6 +82,20 @@ const Settings = () => {
     setChangingPassword(true);
 
     try {
+      // Vérifier le mot de passe actuel avant de le changer
+      const { data: sessionData } = await supabase.auth.getSession();
+      const email = sessionData.session?.user?.email;
+      if (!email) throw new Error("Session introuvable. Veuillez vous reconnecter.");
+
+      const { error: verifyError } = await supabase.auth.signInWithPassword({
+        email,
+        password: currentPassword,
+      });
+
+      if (verifyError) {
+        throw new Error("Mot de passe actuel incorrect.");
+      }
+
       const { error: updateError } = await supabase.auth.updateUser({
         password: newPassword,
       });
@@ -91,10 +104,7 @@ const Settings = () => {
         throw new Error(updateError.message || "Échec de mise à jour du mot de passe.");
       }
 
-      setPasswordForm({
-        newPassword: "",
-        confirmNewPassword: "",
-      });
+      setPasswordForm({ currentPassword: "", newPassword: "", confirmNewPassword: "" });
       toast.success("Mot de passe mis à jour avec succès.");
     } catch (error: any) {
       toast.error(error?.message || "Impossible de modifier le mot de passe.");
@@ -240,9 +250,23 @@ const Settings = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
+                <Label className="text-muted-foreground">Mot de passe actuel</Label>
+                <Input
+                  type="password"
+                  placeholder="••••••••"
+                  value={passwordForm.currentPassword}
+                  onChange={(e) =>
+                    setPasswordForm((prev) => ({ ...prev, currentPassword: e.target.value }))
+                  }
+                  className="bg-background"
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label className="text-muted-foreground">Nouveau mot de passe</Label>
                 <Input
                   type="password"
+                  placeholder="••••••••"
                   value={passwordForm.newPassword}
                   onChange={(e) =>
                     setPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))

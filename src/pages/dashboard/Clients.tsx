@@ -26,9 +26,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/context/AuthContext";
+import { logActivity } from "@/lib/activityLog";
+import { HistoryPanel } from "@/components/shared/HistoryPanel";
 import { supabase } from "@/lib/supabase";
 // Remplacez votre ligne lucide-react par celle-ci
-import { Eye, FileText, FileUp, Loader2, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import { Eye, FileText, FileUp, History, Loader2, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 // Interface correspondant exactement à ta table SQL
@@ -68,6 +71,9 @@ const countryPrefixes: { [key: string]: string } = {
 };
 
 const Clients = () => {
+  const { profile: authProfile } = useAuth();
+  const isAdmin = authProfile?.role === "admin";
+
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -253,10 +259,12 @@ useEffect(() => {
       if (editingClient) {
         const { error } = await supabase.from("clients").update(clientData).eq("id", editingClient.id);
         if (error) throw error;
+        void logActivity("client", editingClient.id, `${clientData.first_name} ${clientData.last_name}`, "updated");
         toast.success("Client mis à jour avec succès");
       } else {
-        const { error } = await supabase.from("clients").insert([clientData]);
+        const { data: inserted, error } = await supabase.from("clients").insert([clientData]).select().single();
         if (error) throw error;
+        if (inserted) void logActivity("client", inserted.id, `${clientData.first_name} ${clientData.last_name}`, "created");
         toast.success("Nouveau client ajouté");
       }
       setIsDialogOpen(false);
@@ -272,8 +280,12 @@ useEffect(() => {
   const handleDelete = async (id: string) => {
     if (!confirm("Êtes-vous sûr de vouloir supprimer ce client ?")) return;
     try {
+      const clientToDelete = clients.find((c) => c.id === id);
       const { error } = await supabase.from("clients").delete().eq("id", id);
       if (error) throw error;
+      if (clientToDelete) {
+        void logActivity("client", id, `${clientToDelete.first_name} ${clientToDelete.last_name}`, "deleted");
+      }
       toast.success("Client supprimé");
       setClients(clients.filter(c => c.id !== id));
     } catch (error) {
@@ -323,27 +335,27 @@ const columns: Column<Client>[] = [
     header: "",
     className: "w-20",
     render: (client) => {
-      // On définit si l'utilisateur a les droits d'écriture
-      const isOwner = currentUserId === client.created_by;
+      // Admin OU propriétaire peuvent modifier/supprimer
+      const canEdit = isAdmin || currentUserId === client.created_by;
 
       return (
         <div className="flex items-center gap-1">
-          {/* ICONE UPLOAD DIRECT : Grisée si pas owner */}
-          <label 
+          {/* ICONE UPLOAD DIRECT : Grisée si pas owner/admin */}
+          <label
             className={`p-2 rounded-full transition-all ${
-              !isOwner 
-                ? "opacity-20 cursor-not-allowed text-muted-foreground" 
+              !canEdit
+                ? "opacity-20 cursor-not-allowed text-muted-foreground"
                 : "cursor-pointer hover:bg-secondary text-primary"
-            }`} 
-            title={isOwner ? "Uploader un fichier" : "Accès restreint"}
+            }`}
+            title={canEdit ? "Uploader un fichier" : "Accès restreint"}
           >
             <FileUp className="w-4 h-4" />
-            {isOwner && (
-              <input 
-                type="file" 
-                className="hidden" 
+            {canEdit && (
+              <input
+                type="file"
+                className="hidden"
                 accept=".pdf,.xlsx,.xls"
-                onChange={(e) => handleFileUpload(e, client.id)} 
+                onChange={(e) => handleFileUpload(e, client.id)}
               />
             )}
           </label>
@@ -367,20 +379,20 @@ const columns: Column<Client>[] = [
 
               <div className="h-px bg-muted my-1" />
 
-              {/* MODIFIER : Grisé si pas owner */}
-              <DropdownMenuItem 
-                disabled={!isOwner}
+              {/* MODIFIER : Accessible si owner ou admin */}
+              <DropdownMenuItem
+                disabled={!canEdit}
                 onClick={() => { setEditingClient(client); setIsDialogOpen(true); }}
-                className={!isOwner ? "opacity-50 cursor-not-allowed" : ""}
+                className={!canEdit ? "opacity-50 cursor-not-allowed" : ""}
               >
                 <Pencil className="w-4 h-4 mr-2" /> Modifier
               </DropdownMenuItem>
-              
-              {/* SUPPRIMER : Grisé si pas owner */}
-              <DropdownMenuItem 
-                disabled={!isOwner}
-                onClick={() => handleDelete(client.id)} 
-                className={isOwner ? "text-destructive" : "opacity-50 cursor-not-allowed"}
+
+              {/* SUPPRIMER : Accessible si owner ou admin */}
+              <DropdownMenuItem
+                disabled={!canEdit}
+                onClick={() => handleDelete(client.id)}
+                className={canEdit ? "text-destructive" : "opacity-50 cursor-not-allowed"}
               >
                 <Trash2 className="w-4 h-4 mr-2" /> Supprimer
               </DropdownMenuItem>
@@ -535,8 +547,8 @@ const columns: Column<Client>[] = [
               ) : (
                 <div className="divide-y border rounded-md">
                     {documents.map((doc) => {
-                    // Seul celui qui a uploadé le doc ou le créateur du client peut supprimer
-                    const canDeleteDoc = currentUserId === doc.uploaded_by || currentUserId === selectedClientForDocs?.created_by;
+                    // Admin, celui qui a uploadé le doc, ou le créateur du client peut supprimer
+                    const canDeleteDoc = isAdmin || currentUserId === doc.uploaded_by || currentUserId === selectedClientForDocs?.created_by;
 
                     return (
                       <div key={doc.id} className="flex items-center justify-between p-3 hover:bg-muted/50 transition-colors">
@@ -651,6 +663,19 @@ const columns: Column<Client>[] = [
         ) : (
           <DataTable columns={columns} data={filteredClients} />
         )}
+
+        {/* ── Historique ─────────────────────────────────────────────────── */}
+        <div className="mt-6 border rounded-xl bg-card">
+          <details>
+            <summary className="flex items-center gap-2 p-4 cursor-pointer font-semibold text-sm select-none">
+              <History className="w-4 h-4 text-muted-foreground" />
+              Historique des modifications clients
+            </summary>
+            <div className="px-4 pb-4">
+              <HistoryPanel entityType="client" />
+            </div>
+          </details>
+        </div>
       </div>
     </DashboardLayout>
   );

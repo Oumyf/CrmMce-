@@ -1,6 +1,15 @@
 <!doctype html>
 <html lang="fr" class="notranslate" translate="no">
   <head>
+    <!-- Dark mode : appliquer le thème AVANT le rendu React pour éviter le flash -->
+    <script>
+      (function () {
+        var theme = localStorage.getItem("theme");
+        if (theme === "dark") {
+          document.documentElement.classList.add("dark");
+        }
+      })();
+    </script>
     <meta name="google" content="notranslate" />
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />

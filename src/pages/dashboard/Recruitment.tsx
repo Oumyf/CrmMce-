@@ -57,6 +57,8 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { HistoryPanel } from "@/components/shared/HistoryPanel";
+import { logActivity } from "@/lib/activityLog";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 
@@ -349,6 +351,7 @@ const Recruitment = () => {
       }));
       setEmployees(normalized);
       setSelectedEmployee(normalized.find((e) => e.id === editingEmployee.id) || null);
+      void logActivity("recruitment", editingEmployee.id, `${formData.first_name} ${formData.last_name}`, "updated");
       toast.success("Salarié mis à jour avec succès");
     } else {
       // CREATE
@@ -376,6 +379,7 @@ const Recruitment = () => {
       }
       const newEmp = { ...(data?.[0] || {}), documents: [], salary_slips: [] };
       setEmployees([newEmp, ...employees]);
+      if (newEmp.id) void logActivity("recruitment", newEmp.id, `${formData.first_name} ${formData.last_name}`, "created");
       toast.success("Salarié ajouté avec succès");
     }
     setShowNewEmployeeDialog(false);
@@ -397,8 +401,10 @@ const Recruitment = () => {
       toast.error("Erreur lors de la suppression : " + error.message);
       return;
     }
+    const deleted = employees.find((emp) => emp.id === deleteTargetId);
     setEmployees(employees.filter((emp) => emp.id !== deleteTargetId));
     if (selectedEmployee?.id === deleteTargetId) setSelectedEmployee(null);
+    if (deleted) void logActivity("recruitment", deleteTargetId, `${deleted.first_name} ${deleted.last_name}`, "deleted");
     toast.success("Salarié supprimé avec succès");
     setShowDeleteDialog(false);
     setDeleteTargetId(null);
@@ -1382,6 +1388,19 @@ const Recruitment = () => {
           </div>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* HISTORIQUE */}
+      <div className="mt-6 border rounded-xl bg-white">
+        <details>
+          <summary className="flex items-center gap-2 p-4 cursor-pointer font-semibold text-sm select-none">
+            <History className="w-4 h-4 text-muted-foreground" />
+            Historique des salariés
+          </summary>
+          <div className="px-4 pb-4">
+            <HistoryPanel entityType="recruitment" />
+          </div>
+        </details>
+      </div>
     </DashboardLayout>
   );
 };

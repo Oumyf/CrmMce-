@@ -1,6 +1,8 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Column, DataTable } from "@/components/shared/DataTable";
 import { FilterBar } from "@/components/shared/FilterBar";
+import { HistoryPanel } from "@/components/shared/HistoryPanel";
+import { logActivity } from "@/lib/activityLog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -31,6 +33,7 @@ import {
   Download,
   Eye,
   FileText,
+  History,
   Loader2,
   MoreHorizontal,
   Pencil,
@@ -367,6 +370,24 @@ export default function Invoices() {
   const [downloading, setDownloading] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
 
+  // ── Recherche client pour le formulaire ───────────────────────────────────
+  const [clientsList, setClientsList] = useState<{ id: string; first_name: string; last_name: string; country: string }[]>([]);
+  const [invoiceClientSearch, setInvoiceClientSearch] = useState("");
+  const [invoiceClientId, setInvoiceClientId] = useState<string | null>(null);
+  const [showInvoiceClientSuggestions, setShowInvoiceClientSuggestions] = useState(false);
+
+  useEffect(() => {
+    supabase.from("clients").select("id, first_name, last_name, country").order("last_name").then(({ data }) => {
+      if (data) setClientsList(data);
+    });
+  }, []);
+
+  const invoiceClientSuggestions = invoiceClientSearch.length >= 2
+    ? clientsList.filter((c) =>
+        `${c.first_name} ${c.last_name}`.toLowerCase().includes(invoiceClientSearch.toLowerCase())
+      ).slice(0, 6)
+    : [];
+
   // ─── Load invoices ──
   const fetchInvoices = async () => {
     try {
@@ -428,8 +449,12 @@ export default function Invoices() {
     setEditingInvoice(invoice);
     if (invoice) {
       setEditLines(invoice.lines || []);
+      setInvoiceClientSearch(invoice.client || "");
+      setInvoiceClientId(invoice.client_id || null);
     } else {
       setEditLines([{ description: "", quantity: 1, unit_price: 0 }]);
+      setInvoiceClientSearch("");
+      setInvoiceClientId(null);
     }
     setIsModalOpen(true);
   };
@@ -447,6 +472,7 @@ export default function Invoices() {
       const invoiceData = {
         num,
         client,
+        client_id: invoiceClientId || null,
         avatar: client
           .split(" ")
           .slice(0, 2)
@@ -489,6 +515,7 @@ export default function Invoices() {
           if (insertError) throw insertError;
         }
 
+        void logActivity("invoice", editingInvoice.id, `Facture ${invoiceData.num} — ${invoiceData.client}`, "updated");
         toast.success("Facture mise à jour");
       } else {
         // Create
@@ -514,6 +541,7 @@ export default function Invoices() {
           if (insertLinesError) throw insertLinesError;
         }
 
+        if (newInv) void logActivity("invoice", newInv.id, `Facture ${invoiceData.num} — ${invoiceData.client}`, "created");
         toast.success("Facture créée");
       }
 
@@ -530,8 +558,12 @@ export default function Invoices() {
     if (!confirm("Êtes-vous sûr de vouloir supprimer cette facture ?")) return;
 
     try {
+      const invoiceToDelete = invoices.find((inv) => inv.id === id);
       const { error } = await supabase.from("invoices").delete().eq("id", id);
       if (error) throw error;
+      if (invoiceToDelete) {
+        void logActivity("invoice", id, `Facture ${invoiceToDelete.num} — ${invoiceToDelete.client}`, "deleted");
+      }
       toast.success("Facture supprimée");
       await fetchInvoices();
     } catch (error: any) {
@@ -827,9 +859,45 @@ const handleDownloadPDF = async () => {
                 </div>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2 relative">
                 <Label className="font-semibold">Client</Label>
-                <Input name="client" defaultValue={editingInvoice?.client} placeholder="Nom du client" required />
+                <Input
+                  name="client"
+                  placeholder="Rechercher un client existant..."
+                  value={invoiceClientSearch}
+                  onChange={(e) => {
+                    setInvoiceClientSearch(e.target.value);
+                    setInvoiceClientId(null);
+                    setShowInvoiceClientSuggestions(true);
+                  }}
+                  onFocus={() => setShowInvoiceClientSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowInvoiceClientSuggestions(false), 150)}
+                  autoComplete="off"
+                  required
+                />
+                {showInvoiceClientSuggestions && invoiceClientSuggestions.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-md shadow-lg overflow-hidden">
+                    {invoiceClientSuggestions.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors"
+                        onMouseDown={() => {
+                          const fullName = `${c.first_name} ${c.last_name}`;
+                          setInvoiceClientSearch(fullName);
+                          setInvoiceClientId(c.id);
+                          setShowInvoiceClientSuggestions(false);
+                        }}
+                      >
+                        <span className="font-medium">{c.first_name} {c.last_name}</span>
+                        {c.country && <span className="ml-2 text-xs text-muted-foreground">{c.country}</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {invoiceClientId && (
+                  <p className="text-xs text-teal-600 mt-1">✓ Client existant lié</p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -992,6 +1060,19 @@ const handleDownloadPDF = async () => {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* HISTORIQUE */}
+        <div className="mt-6 border rounded-xl bg-card">
+          <details>
+            <summary className="flex items-center gap-2 p-4 cursor-pointer font-semibold text-sm select-none">
+              <History className="w-4 h-4 text-muted-foreground" />
+              Historique des factures
+            </summary>
+            <div className="px-4 pb-4">
+              <HistoryPanel entityType="invoice" />
+            </div>
+          </details>
+        </div>
       </div>
     </DashboardLayout>
   );

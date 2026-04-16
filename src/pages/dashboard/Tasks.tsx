@@ -27,6 +27,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/context/AuthContext";
+import { HistoryPanel } from "@/components/shared/HistoryPanel";
+import { logActivity } from "@/lib/activityLog";
 import { supabase } from "@/lib/supabase"; // SUPABASE: Import du client
 import {
   AlertCircle,
@@ -64,6 +67,9 @@ interface Task {
 }
 
 const Tasks = () => {
+  const { profile: authProfile } = useAuth();
+  const isAdmin = authProfile?.role === "admin";
+
   // En situation réelle, on récupèrerait l'id depuis supabase.auth.getSession()
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string }>({
     id: "",
@@ -168,6 +174,8 @@ const Tasks = () => {
           if (error) {
             toast.error("Erreur lors de la suppression");
           } else {
+            const deleted = tasks.find((t) => t.id === taskId);
+            if (deleted) void logActivity("task", taskId, deleted.name, "deleted");
             setTasks(prev => prev.filter(t => t.id !== taskId));
             toast.success("Tâche supprimée");
           }
@@ -260,6 +268,7 @@ const Tasks = () => {
       if (error) throw error;
 
       setTasks(tasks.map(t => t.id === editingTask.id ? data[0] : t));
+      void logActivity("task", editingTask.id, taskPayload.name || "Tâche", "updated");
       toast.success("Tâche modifiée avec succès !");
       setIsCreateModalOpen(false);
       setEditingTask(null);
@@ -279,6 +288,7 @@ const Tasks = () => {
       if (error) throw error;
 
       setTasks([data[0], ...tasks]);
+      void logActivity("task", data[0].id, taskPayload.name || "Tâche", "created");
       toast.success("Tâche créée !");
       setIsCreateModalOpen(false);
       resetForm();
@@ -490,18 +500,32 @@ const Tasks = () => {
              <div className="text-center py-10 text-muted-foreground italic">Chargement des tâches...</div>
           ) : filteredTasks.length > 0 ? (
             filteredTasks.map(task => (
-              <TaskItem 
-                key={task.id} 
-                task={task} 
-                currentUserId={currentUser.id} 
-                onStatusChange={updateTaskStatus} 
-                onDelete={deleteTask}   // Ajoutez ceci (il faudra l'ajouter aux props de TaskItem)
-                onEdit={handleEditClick} // Ajoutez ceci
+              <TaskItem
+                key={task.id}
+                task={task}
+                currentUserId={currentUser.id}
+                isAdmin={isAdmin}
+                onStatusChange={updateTaskStatus}
+                onDelete={deleteTask}
+                onEdit={handleEditClick}
               />
             ))
           ) : (
             <div className="text-center py-10 text-muted-foreground italic">Aucune tâche trouvée.</div>
           )}
+        </div>
+
+        {/* HISTORIQUE */}
+        <div className="mt-6 border rounded-xl bg-card">
+          <details>
+            <summary className="flex items-center gap-2 p-4 cursor-pointer font-semibold text-sm select-none">
+              <History className="w-4 h-4 text-muted-foreground" />
+              Historique des tâches
+            </summary>
+            <div className="px-4 pb-4">
+              <HistoryPanel entityType="task" />
+            </div>
+          </details>
         </div>
       </div>
     </DashboardLayout>
@@ -510,20 +534,22 @@ const Tasks = () => {
 
 // --- COMPOSANT ITEM (Identique au précédent mais avec les clés owner_id) ---
 
-const TaskItem = ({ 
-  task, 
-  currentUserId, 
-  onStatusChange, 
-  onDelete, 
-  onEdit 
-}: { 
-  task: Task, 
-  currentUserId: string, 
+const TaskItem = ({
+  task,
+  currentUserId,
+  isAdmin,
+  onStatusChange,
+  onDelete,
+  onEdit
+}: {
+  task: Task,
+  currentUserId: string,
+  isAdmin: boolean,
   onStatusChange: (id: string, s: TaskStatus) => void,
   onDelete: (id: string) => void,
   onEdit: (task: Task) => void
 }) => {
-  const isOwner = task.owner_id === currentUserId;
+  const canEdit = isAdmin || task.owner_id === currentUserId;
   
   const getFinalStatus = () => {
     if (task.status === "terminee") return "terminee";
@@ -626,7 +652,7 @@ const TaskItem = ({
                   <div className="w-2 h-2 rounded-full bg-green-500" /> Marquer comme terminée
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                {isOwner ? (
+                {canEdit ? (
                   <>
                     <DropdownMenuItem onClick={() => onEdit(task)}>
                       Modifier

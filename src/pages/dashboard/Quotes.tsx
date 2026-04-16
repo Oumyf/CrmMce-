@@ -21,6 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { HistoryPanel } from "@/components/shared/HistoryPanel";
+import { logActivity } from "@/lib/activityLog";
 import { supabase } from "@/lib/supabase";
 import {
   Plus,
@@ -29,6 +31,7 @@ import {
   Trash2,
   FileText,
   Eye,
+  History,
   Send,
   Download,
   X,
@@ -224,10 +227,28 @@ const Quotes = () => {
   const [newQuote, setNewQuote] = useState({
     number: "",
     client_name: "",
+    client_id: "" as string | null,
     expiration_date: "",
     status: "draft" as QuoteStatus,
     country: "",
   });
+
+  // ── Recherche client ───────────────────────────────────────────────────────
+  const [clientsList, setClientsList] = useState<{ id: string; first_name: string; last_name: string; country: string }[]>([]);
+  const [clientSearch, setClientSearch] = useState("");
+  const [showClientSuggestions, setShowClientSuggestions] = useState(false);
+
+  useEffect(() => {
+    supabase.from("clients").select("id, first_name, last_name, country").order("last_name").then(({ data }) => {
+      if (data) setClientsList(data);
+    });
+  }, []);
+
+  const clientSuggestions = clientSearch.length >= 2
+    ? clientsList.filter((c) =>
+        `${c.first_name} ${c.last_name}`.toLowerCase().includes(clientSearch.toLowerCase())
+      ).slice(0, 6)
+    : [];
   const [newItem, setNewItem] = useState({
     product_name: "",
     quantity: 1,
@@ -282,6 +303,7 @@ const Quotes = () => {
     const quoteToInsert = {
       number: newQuote.number,
       client_name: newQuote.client_name,
+      client_id: newQuote.client_id || null,
       expiration_date: newQuote.expiration_date || null,
       status: newQuote.status,
       country: newQuote.country || null,
@@ -309,7 +331,9 @@ const Quotes = () => {
       setQuotes([newQ, ...quotes]);
       setSelectedQuote(newQ);
       setShowNewQuoteDialog(false);
-      setNewQuote({ number: "", client_name: "", expiration_date: "", status: "draft", country: "" });
+      setNewQuote({ number: "", client_name: "", client_id: null, expiration_date: "", status: "draft", country: "" });
+      setClientSearch("");
+      void logActivity("quote", newQ.id, `Devis ${newQ.number} — ${newQ.client_name}`, "created");
       toast.success("Devis créé avec succès");
     }
   };
@@ -338,6 +362,7 @@ const Quotes = () => {
       };
       setQuotes(quotes.map((q) => (q.id === id ? updated : q)));
       setSelectedQuote(updated);
+      void logActivity("quote", id, `Devis ${updatedQuote.number} — ${updatedQuote.client_name}`, "updated");
       toast.success("Devis sauvegardé");
     }
   };
@@ -422,6 +447,7 @@ const Quotes = () => {
       console.error(error);
       return;
     }
+    void logActivity("quote", selectedQuote.id, `Devis ${selectedQuote.number} — ${selectedQuote.client_name}`, "deleted");
     setQuotes(quotes.filter((q) => q.id !== selectedQuote.id));
     setSelectedQuote(null);
     setShowDeleteDialog(false);
@@ -566,15 +592,48 @@ const Quotes = () => {
                       }
                     />
                   </div>
-                  <div>
+                  <div className="relative">
                     <Label>Client</Label>
                     <Input
-                      placeholder="Nom du client"
-                      value={newQuote.client_name}
-                      onChange={(e) =>
-                        setNewQuote({ ...newQuote, client_name: e.target.value })
-                      }
+                      placeholder="Rechercher un client existant..."
+                      value={clientSearch || newQuote.client_name}
+                      onChange={(e) => {
+                        setClientSearch(e.target.value);
+                        setNewQuote({ ...newQuote, client_name: e.target.value, client_id: null });
+                        setShowClientSuggestions(true);
+                      }}
+                      onFocus={() => setShowClientSuggestions(true)}
+                      onBlur={() => setTimeout(() => setShowClientSuggestions(false), 150)}
+                      autoComplete="off"
                     />
+                    {showClientSuggestions && clientSuggestions.length > 0 && (
+                      <div className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-md shadow-lg overflow-hidden">
+                        {clientSuggestions.map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors"
+                            onMouseDown={() => {
+                              const fullName = `${c.first_name} ${c.last_name}`;
+                              setNewQuote({
+                                ...newQuote,
+                                client_name: fullName,
+                                client_id: c.id,
+                                country: newQuote.country || c.country || "",
+                              });
+                              setClientSearch(fullName);
+                              setShowClientSuggestions(false);
+                            }}
+                          >
+                            <span className="font-medium">{c.first_name} {c.last_name}</span>
+                            {c.country && <span className="ml-2 text-xs text-muted-foreground">{c.country}</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {newQuote.client_id && (
+                      <p className="text-xs text-primary mt-1">✓ Client existant lié</p>
+                    )}
                   </div>
                   <div>
                     <Label>Date d'expiration</Label>
@@ -1058,6 +1117,19 @@ const Quotes = () => {
             </Button>
           </div>
         )}
+      </div>
+
+      {/* HISTORIQUE */}
+      <div className="mt-6 border rounded-xl bg-card">
+        <details>
+          <summary className="flex items-center gap-2 p-4 cursor-pointer font-semibold text-sm select-none">
+            <History className="w-4 h-4 text-muted-foreground" />
+            Historique des devis
+          </summary>
+          <div className="px-4 pb-4">
+            <HistoryPanel entityType="quote" />
+          </div>
+        </details>
       </div>
 
       {/* DIALOG DE SUPPRESSION */}

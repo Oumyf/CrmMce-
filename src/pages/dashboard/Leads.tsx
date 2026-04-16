@@ -208,14 +208,40 @@ const Leads = () => {
   };
 
   const handleConvert = async (leadId: string) => {
-    const { error } = await supabase.rpc('convert_lead_to_project', {
-      target_lead_id: leadId,
-      project_deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-    });
+    const lead = leads.find((l) => l.id === leadId);
+    if (!lead) return toast.error("Lead introuvable");
 
-    if (error) toast.error("Erreur de conversion");
-    else {
-      toast.success("Lead converti en projet !");
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return toast.error("Session expirée, veuillez vous reconnecter");
+
+    // Créer un projet depuis les infos du lead
+    const deadline = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    const { error: projectError } = await supabase.from("projects").insert([{
+      name: `Projet - ${lead.first_name} ${lead.last_name}`,
+      client_name: lead.company_name || `${lead.first_name} ${lead.last_name}`,
+      status: "en_cours",
+      progress: 0,
+      deadline,
+      country: lead.country || "senegal",
+      description: lead.notes || "",
+      created_by: user.id,
+    }]);
+
+    if (projectError) {
+      toast.error("Erreur lors de la création du projet : " + projectError.message);
+      return;
+    }
+
+    // Marquer le lead comme converti
+    const { error: leadError } = await supabase
+      .from("leads")
+      .update({ status: "converti" })
+      .eq("id", leadId);
+
+    if (leadError) {
+      toast.error("Projet créé mais impossible de mettre à jour le lead");
+    } else {
+      toast.success("Lead converti en projet avec succès !");
       fetchLeads();
     }
   };

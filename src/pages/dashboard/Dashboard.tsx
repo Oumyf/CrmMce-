@@ -2,6 +2,7 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/lib/supabase";
 import {
+  ArrowRight,
   CheckSquare,
   Clock,
   FolderKanban,
@@ -10,6 +11,7 @@ import {
   Users
 } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 // --- Types ---
 interface CountryStat {
@@ -64,6 +66,7 @@ const CACHE_DURATION = 30000; // 30 secondes
 
 const Dashboard = () => {
   const { displayName } = useProfile();
+  const navigate = useNavigate();
   const [data, setData] = useState<DashboardState | null>(dashboardCache?.data || null);
   const [loading, setLoading] = useState(!dashboardCache?.data);
 
@@ -80,34 +83,67 @@ const fetchDashboardData = useCallback(async (force = false) => {
   try {
     setLoading(true);
 
-    // ✅ Timeout de 10 secondes pour éviter le blocage infini
+    const today = new Date();
+    const next3 = new Date(); next3.setDate(today.getDate() + 3);
+    const next7 = new Date(); next7.setDate(today.getDate() + 7);
+
     const fetchPromise = Promise.all([
-      supabase.from('dashboard_stats').select('*').single(),
-      supabase.from('recent_activity').select('id, type, message, created_at').limit(6).order('created_at', { ascending: false }),
+      // Stats : comptages directs sur les vraies tables
+      supabase.from('leads').select('id, created_at', { count: 'exact' }),
+      supabase.from('clients').select('id, status, country', { count: 'exact' }),
+      supabase.from('projects').select('id, status', { count: 'exact' }),
+      supabase.from('tasks').select('id, status, end_date', { count: 'exact' }),
+      // Projets avec deadlines proches
       supabase.from('projects')
-        .select('name, deadline')
+        .select('id, name, deadline')
         .eq('status', 'en_cours')
         .not('deadline', 'is', null)
-        .order('deadline', { ascending: true }),
-      supabase.from('clients').select('country')
+        .order('deadline', { ascending: true })
+        .limit(20),
     ]);
 
-    const timeoutPromise = new Promise((_, reject) => 
+    const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('Dashboard timeout')), 10000)
     );
 
-    const [statsRes, activityRes, projectsRes, countryRes] = await Promise.race([
+    const [leadsRes, clientsRes, projectsRes, tasksRes, upcomingRes] = await Promise.race([
       fetchPromise,
       timeoutPromise
     ]) as any;
 
-    const today = new Date();
-    const next3 = new Date();
-    next3.setDate(today.getDate() + 3);
-    const next7 = new Date();
-    next7.setDate(today.getDate() + 7);
+    // Calcul des stats
+    const allLeads = leadsRes.data || [];
+    const newLeads = allLeads.filter((l: any) => {
+      const created = new Date(l.created_at);
+      const weekAgo = new Date(); weekAgo.setDate(today.getDate() - 7);
+      return created >= weekAgo;
+    }).length;
 
-    const categorized = (projectsRes.data || [])
+    const allClients = clientsRes.data || [];
+    const confirmedClients = allClients.filter((c: any) => c.status?.toLowerCase() === 'confirmé').length;
+
+    const allProjects = projectsRes.data || [];
+    const activeProjects = allProjects.filter((p: any) => p.status === 'en_cours').length;
+
+    const allTasks = tasksRes.data || [];
+    const pendingTasks = allTasks.filter((t: any) => t.status !== 'terminee').length;
+    const overdueTasks = allTasks.filter((t: any) =>
+      t.status !== 'terminee' && t.end_date && new Date(t.end_date) < today
+    ).length;
+
+    const stats = {
+      total_Leads: leadsRes.count ?? allLeads.length,
+      new_Leads: newLeads,
+      confirmed_clients: confirmedClients,
+      total_clients: clientsRes.count ?? allClients.length,
+      active_projects: activeProjects,
+      total_projects: projectsRes.count ?? allProjects.length,
+      pending_tasks: pendingTasks,
+      overdue_tasks: overdueTasks,
+    };
+
+    // Catégorisation des échéances
+    const categorized = (upcomingRes.data || [])
       .filter((p: any) => new Date(p.deadline) <= next7)
       .map((p: any) => {
         const deadline = new Date(p.deadline);
@@ -117,7 +153,7 @@ const fetchDashboardData = useCallback(async (force = false) => {
         return { ...p, level };
       });
 
-    const countryCounts = (countryRes.data || []).reduce((acc: any, curr: any) => {
+    const countryCounts = allClients.reduce((acc: any, curr: any) => {
       const country = curr.country || "Non défini";
       acc[country] = (acc[country] || 0) + 1;
       return acc;
@@ -129,8 +165,8 @@ const fetchDashboardData = useCallback(async (force = false) => {
       .slice(0, 3);
 
     const newData = {
-      stats: statsRes.data,
-      activities: activityRes.data || [],
+      stats,
+      activities: [],
       upcomingProjects: categorized,
       countries: formattedCountries
     };
@@ -241,11 +277,19 @@ const fetchDashboardData = useCallback(async (force = false) => {
 
               <div className="space-y-6">
                 <div className="bg-card rounded-xl border border-border p-6 shadow-sm">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-2 rounded-lg bg-warning/10">
-                      <Clock className="w-5 h-5 text-warning" />
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-warning/10">
+                        <Clock className="w-5 h-5 text-warning" />
+                      </div>
+                      <h3 className="font-semibold text-foreground">Échéances proches</h3>
                     </div>
-                    <h3 className="font-semibold text-foreground">Échéances proches</h3>
+                    <button
+                      onClick={() => navigate("/dashboard/projects")}
+                      className="flex items-center gap-1 text-xs text-primary hover:underline font-medium"
+                    >
+                      Voir tous <ArrowRight className="w-3 h-3" />
+                    </button>
                   </div>
 
                   <div className="space-y-3">
@@ -257,7 +301,11 @@ const fetchDashboardData = useCallback(async (force = false) => {
                       }[p.level as "overdue" | "urgent" | "soon"];
 
                       return (
-                        <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-transparent hover:border-border transition-all">
+                        <div
+                          key={i}
+                          onClick={() => navigate("/dashboard/projects")}
+                          className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-transparent hover:border-primary/30 hover:bg-primary/5 transition-all cursor-pointer"
+                        >
                           <div className="flex flex-col">
                             <span className="text-sm font-medium truncate max-w-[120px]">{p.name}</span>
                             <span className={`text-[10px] font-bold uppercase ${statusStyles.color}`}>

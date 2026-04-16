@@ -1,5 +1,7 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { FilterBar } from "@/components/shared/FilterBar";
+import { HistoryPanel } from "@/components/shared/HistoryPanel";
+import { logActivity } from "@/lib/activityLog";
 import { ProjectStatus, StatusBadge } from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import {
@@ -44,6 +46,7 @@ import {
   Eye,
   FileText,
   Globe,
+  History,
   Info,
   MoreHorizontal,
   Pencil,
@@ -237,6 +240,7 @@ const Projects = () => {
 
       if (error) throw error;
 
+      void logActivity("project", project.id, project.name, "deleted");
       toast.success("Projet supprimé définitivement");
       fetchData();
 
@@ -418,6 +422,12 @@ const Projects = () => {
         }
       }
 
+      void logActivity(
+        "project",
+        projectId || "unknown",
+        formData.name || "Projet",
+        selectedProject ? "updated" : "created"
+      );
       toast.success("Opération réussie !");
       setIsDialogOpen(false);
       fetchData();
@@ -864,6 +874,19 @@ const Projects = () => {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* HISTORIQUE */}
+        <div className="mt-6 border rounded-xl bg-card">
+          <details>
+            <summary className="flex items-center gap-2 p-4 cursor-pointer font-semibold text-sm select-none">
+              <History className="w-4 h-4 text-muted-foreground" />
+              Historique des projets
+            </summary>
+            <div className="px-4 pb-4">
+              <HistoryPanel entityType="project" />
+            </div>
+          </details>
+        </div>
       </div>
     </DashboardLayout>
   );
