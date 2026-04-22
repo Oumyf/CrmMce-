@@ -21,9 +21,15 @@ interface ActivityLog {
 }
 
 const ACTION_LABELS: Record<string, string> = {
-  created: "Créé",
+  created: "Ajouté",
   updated: "Modifié",
   deleted: "Supprimé",
+};
+
+const ACTION_SENTENCES: Record<string, (name: string) => string> = {
+  created: (name) => `${name} a été ajouté`,
+  updated: (name) => `${name} a été modifié`,
+  deleted: (name) => `${name} a été supprimé`,
 };
 
 interface HistoryPanelProps {
@@ -135,36 +141,46 @@ export const HistoryPanel = ({
 
           {tableExists &&
             !loading &&
-            filtered.map((log) => (
-              <div
-                key={log.id}
-                className="relative pl-6 border-l-2 border-slate-100 py-1"
-              >
-                <div className="absolute -left-[9px] top-2 w-4 h-4 rounded-full bg-white border-2 border-teal-500" />
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between text-[10px] text-muted-foreground font-medium gap-2">
-                    <span className="line-clamp-1">
-                      <Clock className="w-3 h-3 inline mr-1" />
-                      {new Date(log.created_at).toLocaleString("fr-FR")}
-                    </span>
-                    <span className="bg-slate-100 px-2 py-0.5 rounded uppercase shrink-0 text-[9px]">
-                      {ACTION_LABELS[log.action] || log.action}
-                    </span>
-                  </div>
-                  <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100">
-                    {log.entity_name}
-                  </p>
-                  {log.details && (
-                    <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 italic">
-                      "{log.details}"
+            filtered.map((log) => {
+              const sentence = ACTION_SENTENCES[log.action]
+                ? ACTION_SENTENCES[log.action](log.entity_name)
+                : `${log.entity_name} — ${log.action}`;
+              const badgeColors: Record<string, string> = {
+                created: "bg-green-100 text-green-700",
+                updated: "bg-blue-100 text-blue-700",
+                deleted: "bg-red-100 text-red-700",
+              };
+              return (
+                <div
+                  key={log.id}
+                  className="relative pl-6 border-l-2 border-slate-100 py-1"
+                >
+                  <div className="absolute -left-[9px] top-2 w-4 h-4 rounded-full bg-white border-2 border-teal-500" />
+                  <div className="flex flex-col gap-1">
+                    <div className="flex justify-between text-[10px] text-muted-foreground font-medium gap-2">
+                      <span className="line-clamp-1">
+                        <Clock className="w-3 h-3 inline mr-1" />
+                        {new Date(log.created_at).toLocaleString("fr-FR")}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full uppercase shrink-0 text-[9px] font-bold ${badgeColors[log.action] || "bg-slate-100 text-slate-600"}`}>
+                        {ACTION_LABELS[log.action] || log.action}
+                      </span>
+                    </div>
+                    <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100">
+                      {sentence}
                     </p>
-                  )}
-                  <p className="text-[10px] text-teal-600 font-medium">
-                    Par {log.user_name || "Système"}
-                  </p>
+                    {log.details && (
+                      <p className="text-xs text-slate-500 dark:text-slate-400 italic">
+                        {log.details}
+                      </p>
+                    )}
+                    <p className="text-[10px] text-teal-600 font-medium">
+                      Par {log.user_name || "Système"}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
         </div>
       </SheetContent>
     </Sheet>
