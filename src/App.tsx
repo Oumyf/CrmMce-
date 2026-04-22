@@ -25,6 +25,7 @@ const Collaboration = lazy(() => import("./pages/dashboard/Collaboration"));
 const Quotes = lazy(() => import("./pages/dashboard/Quotes"));
 const Invoices = lazy(() => import("./pages/dashboard/Invoices"));
 const Recruitment = lazy(() => import("./pages/dashboard/Recruitment"));
+const ProjectDetail = lazy(() => import("./pages/dashboard/ProjectDetail"));
 
 // ─── Loading Fallback ────────────────────────────────────────────────────────
 const LoadingFallback = () => (
@@ -82,6 +83,7 @@ const App = () => (
             <Route path="/dashboard/leads" element={<ProtectedRoute><Leads /></ProtectedRoute>} />
             <Route path="/dashboard/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
             <Route path="/dashboard/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
+            <Route path="/dashboard/projects/:id" element={<ProtectedRoute><ProjectDetail /></ProtectedRoute>} />
             <Route path="/dashboard/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
             <Route path="/dashboard/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
             <Route path="/dashboard/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />

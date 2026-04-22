@@ -1,7 +1,6 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { FilterBar } from "@/components/shared/FilterBar";
 import { HistoryPanel } from "@/components/shared/HistoryPanel";
-import { logActivity } from "@/lib/activityLog";
 import { ProjectStatus, StatusBadge } from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import {
@@ -57,7 +56,7 @@ import {
   X
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
 // Interfaces
@@ -82,11 +81,12 @@ interface Project {
 }
 
 const Projects = () => {
+  const navigate = useNavigate();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  
+
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [isManualEntry, setIsManualEntry] = useState(false);
@@ -457,8 +457,7 @@ const Projects = () => {
   };
 
   const handleViewDetails = (project: Project) => {
-    setSelectedProject(project);
-    setIsDetailsOpen(true);
+    navigate(`/dashboard/projects/${project.id}`);
   };
 
   const handleEdit = (project: Project) => {
