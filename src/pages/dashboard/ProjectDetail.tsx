@@ -50,12 +50,10 @@ const PRIORITY_COLORS: Record<string, string> = {
 
 const TASK_STATUS_MAP: Record<string, { label: string; color: string }> = {
   "a_faire":    { label: "À faire",    color: "bg-slate-100 text-slate-600"  },
-  "à faire":    { label: "À faire",    color: "bg-slate-100 text-slate-600"  },
   "en_cours":   { label: "En cours",   color: "bg-blue-100 text-blue-700"    },
-  "en cours":   { label: "En cours",   color: "bg-blue-100 text-blue-700"    },
   "en_attente": { label: "En attente", color: "bg-yellow-100 text-yellow-700"},
-  "terminée":   { label: "Terminée",   color: "bg-green-100 text-green-700"  },
-  "termine":    { label: "Terminée",   color: "bg-green-100 text-green-700"  },
+  "terminee":   { label: "Terminée",   color: "bg-green-100 text-green-700"  },
+  "en_retard":  { label: "En retard",  color: "bg-red-100 text-red-700"      },
 };
 
 const getFileName = (url: string) => {
@@ -130,9 +128,10 @@ const ProjectDetail = () => {
   };
 
   // ── Stats basées sur les tâches (données réelles disponibles) ────────────
-  const tasksDone    = tasks.filter(t => t.status === "terminée" || t.status === "termine").length;
-  const tasksInProg  = tasks.filter(t => t.status === "en_cours" || t.status === "en cours").length;
-  const tasksTodo    = tasks.filter(t => t.status === "a_faire"  || t.status === "à faire" || t.status === "en_attente").length;
+  const tasksDone    = tasks.filter(t => t.status === "terminee").length;
+  const tasksInProg  = tasks.filter(t => t.status === "en_cours").length;
+  const tasksTodo    = tasks.filter(t => t.status === "a_faire" || t.status === "en_attente").length;
+  const tasksLate    = tasks.filter(t => t.status === "en_retard").length;
   const isOverdue    = project?.deadline && project.status !== "termine" && new Date(project.deadline) < new Date();
 
   if (loading) return (
@@ -250,12 +249,13 @@ const ProjectDetail = () => {
         </div>
 
         {/* ── Stats tâches ───────────────────────────── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           {[
-            { label: "Total tâches",   value: tasks.length,    color: "text-foreground",    bg: "bg-card"            },
-            { label: "À faire",        value: tasksTodo,       color: "text-orange-600",    bg: "bg-orange-50 dark:bg-orange-950/20" },
-            { label: "En cours",       value: tasksInProg,     color: "text-blue-600",      bg: "bg-blue-50 dark:bg-blue-950/20"     },
-            { label: "Terminées",      value: tasksDone,       color: "text-green-600",     bg: "bg-green-50 dark:bg-green-950/20"   },
+            { label: "Total",      value: tasks.length,  color: "text-foreground",  bg: "bg-card"            },
+            { label: "À faire",    value: tasksTodo,     color: "text-orange-600",  bg: "bg-orange-50 dark:bg-orange-950/20" },
+            { label: "En cours",   value: tasksInProg,   color: "text-blue-600",    bg: "bg-blue-50 dark:bg-blue-950/20"     },
+            { label: "Terminées",  value: tasksDone,     color: "text-green-600",   bg: "bg-green-50 dark:bg-green-950/20"   },
+            { label: "En retard",  value: tasksLate,     color: "text-red-600",     bg: "bg-red-50 dark:bg-red-950/20"       },
           ].map((s) => (
             <div key={s.label} className={`border rounded-xl p-4 ${s.bg}`}>
               <p className="text-xs text-muted-foreground mb-1">{s.label}</p>
@@ -308,7 +308,7 @@ const ProjectDetail = () => {
                     return (
                       <div key={task.id} className="flex items-center justify-between p-3 border rounded-lg bg-card hover:bg-muted/30 transition-colors gap-3">
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className={`w-2 h-2 rounded-full shrink-0 ${task.status === "terminée" || task.status === "termine" ? "bg-green-500" : task.status === "en cours" || task.status === "en_cours" ? "bg-blue-500" : "bg-slate-300"}`} />
+                          <div className={`w-2 h-2 rounded-full shrink-0 ${task.status === "terminee" ? "bg-green-500" : task.status === "en_cours" ? "bg-blue-500" : task.status === "en_retard" ? "bg-red-500" : "bg-slate-300"}`} />
                           <div className="min-w-0">
                             <p className="text-sm font-medium truncate">{task.name}</p>
                             {task.owner_name && (
@@ -437,7 +437,7 @@ const ProjectDetail = () => {
                   { label: "Statut",       value: <StatusBadge status={project.status} /> },
                   { label: "Pays",         value: <span className="font-medium text-sm">{project.country}</span> },
                   { label: "Avancement",   value: <span className="font-medium text-sm">{project.progress}%</span> },
-                  { label: "Tâches",       value: <span className="font-medium text-sm">{tasks.length} ({tasksDone} terminées)</span> },
+                  { label: "Tâches",       value: <span className="font-medium text-sm">{tasks.length} ({tasksDone} terminée{tasksDone > 1 ? "s" : ""})</span> },
                   { label: "Fichiers",     value: <span className="font-medium text-sm">{project.attachments?.length || 0}</span> },
                   ...(project.deadline ? [{
                     label: "Délai",

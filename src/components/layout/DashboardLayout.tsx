@@ -4,7 +4,6 @@ import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { UserPlus } from "lucide-react";
 import {
-  BarChart3,
   Calendar,
   CheckSquare,
   FileText,
@@ -33,7 +32,7 @@ interface NavItem {
 
 const isAdminRole = (role?: string | null) => {
   const normalized = String(role || "").toLowerCase();
-  return normalized === "admin" || normalized === "administrateur";
+  return normalized.includes("admin");
 };
 
 const navItems: NavItem[] = [
