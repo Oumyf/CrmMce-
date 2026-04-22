@@ -427,7 +427,8 @@ const Projects = () => {
         "project",
         projectId || "unknown",
         formData.name || "Projet",
-        selectedProject ? "updated" : "created"
+        selectedProject ? "updated" : "created",
+        `Statut: ${formData.status} · Client: ${formData.client_name}${formData.deadline ? ` · Délai: ${new Date(formData.deadline).toLocaleDateString("fr-FR")}` : ""}`
       );
       toast.success("Opération réussie !");
       setIsDialogOpen(false);
@@ -963,7 +964,7 @@ const ProjectCard = ({
         <div className="flex justify-between items-center gap-2 flex-wrap">
           <div className="flex items-center gap-2 flex-wrap">
             <StatusBadge status={project.status} />
-            {project.deadline && project.status !== "terminé" && new Date(project.deadline) < new Date() && (
+            {project.deadline && project.status !== "termine" && new Date(project.deadline) < new Date() && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700 border border-red-200">
                 🔴 En retard
               </span>

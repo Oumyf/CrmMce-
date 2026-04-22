@@ -266,7 +266,7 @@ const Tasks = () => {
       if (error) throw error;
 
       setTasks(tasks.map(t => t.id === editingTask.id ? data[0] : t));
-      void logActivity("task", editingTask.id, taskPayload.name || "Tâche", "updated");
+      void logActivity("task", editingTask.id, taskPayload.name || "Tâche", "updated", `Statut: ${taskPayload.status} · Priorité: ${taskPayload.priority}${taskPayload.project_name ? ` · Projet: ${taskPayload.project_name}` : ""}`);
       toast.success("Tâche modifiée avec succès !");
       setIsCreateModalOpen(false);
       setEditingTask(null);
@@ -286,7 +286,7 @@ const Tasks = () => {
       if (error) throw error;
 
       setTasks([data[0], ...tasks]);
-      void logActivity("task", data[0].id, taskPayload.name || "Tâche", "created");
+      void logActivity("task", data[0].id, taskPayload.name || "Tâche", "created", `Statut: ${taskPayload.status} · Priorité: ${taskPayload.priority}${taskPayload.project_name ? ` · Projet: ${taskPayload.project_name}` : ""}`);
       toast.success("Tâche créée !");
       setIsCreateModalOpen(false);
       resetForm();
