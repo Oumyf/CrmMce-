@@ -334,7 +334,6 @@ const Quotes = () => {
       setShowNewQuoteDialog(false);
       setNewQuote({ number: "", client_name: "", client_id: null, expiration_date: "", status: "draft", country: "" });
       setClientSearch("");
-      void logActivity("quote", newQ.id, `Devis ${newQ.number} — ${newQ.client_name}`, "created", `Statut: ${newQ.status}`);
       toast.success("Devis créé avec succès");
     }
   };
@@ -363,7 +362,6 @@ const Quotes = () => {
       };
       setQuotes(quotes.map((q) => (q.id === id ? updated : q)));
       setSelectedQuote(updated);
-      void logActivity("quote", id, `Devis ${updatedQuote.number} — ${updatedQuote.client_name}`, "updated", `Statut: ${updatedQuote.status}${updatedQuote.total_amount ? ` · Total: ${updatedQuote.total_amount} €` : ""}`);
       toast.success("Devis sauvegardé");
     }
   };
@@ -448,7 +446,6 @@ const Quotes = () => {
       console.error(error);
       return;
     }
-    void logActivity("quote", selectedQuote.id, `Devis ${selectedQuote.number} — ${selectedQuote.client_name}`, "deleted");
     setQuotes(quotes.filter((q) => q.id !== selectedQuote.id));
     setSelectedQuote(null);
     setShowDeleteDialog(false);

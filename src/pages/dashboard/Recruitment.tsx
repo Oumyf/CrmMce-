@@ -353,7 +353,6 @@ const Recruitment = () => {
       }));
       setEmployees(normalized);
       setSelectedEmployee(normalized.find((e) => e.id === editingEmployee.id) || null);
-      void logActivity("recruitment", editingEmployee.id, `${formData.first_name} ${formData.last_name}`, "updated", `Département: ${formData.department}${formData.contract_type ? ` · Contrat: ${formData.contract_type}` : ""}`);
       toast.success("Salarié mis à jour avec succès");
     } else {
       // CREATE
@@ -381,7 +380,6 @@ const Recruitment = () => {
       }
       const newEmp = { ...(data?.[0] || {}), documents: [], salary_slips: [] };
       setEmployees([newEmp, ...employees]);
-      if (newEmp.id) void logActivity("recruitment", newEmp.id, `${formData.first_name} ${formData.last_name}`, "created", `Département: ${formData.department}${formData.contract_type ? ` · Contrat: ${formData.contract_type}` : ""}`);
       toast.success("Salarié ajouté avec succès");
     }
     setShowNewEmployeeDialog(false);
@@ -406,7 +404,6 @@ const Recruitment = () => {
     const deleted = employees.find((emp) => emp.id === deleteTargetId);
     setEmployees(employees.filter((emp) => emp.id !== deleteTargetId));
     if (selectedEmployee?.id === deleteTargetId) setSelectedEmployee(null);
-    if (deleted) void logActivity("recruitment", deleteTargetId, `${deleted.first_name} ${deleted.last_name}`, "deleted");
     toast.success("Salarié supprimé avec succès");
     setShowDeleteDialog(false);
     setDeleteTargetId(null);

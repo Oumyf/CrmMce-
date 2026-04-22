@@ -516,7 +516,6 @@ export default function Invoices() {
           if (insertError) throw insertError;
         }
 
-        void logActivity("invoice", editingInvoice.id, `Facture ${invoiceData.num} — ${invoiceData.client}`, "updated", `Statut: ${invoiceData.status} · Montant: ${invoiceData.amount}${invoiceData.due ? ` · Échéance: ${invoiceData.due}` : ""}`);
         toast.success("Facture mise à jour");
       } else {
         // Create
@@ -542,7 +541,6 @@ export default function Invoices() {
           if (insertLinesError) throw insertLinesError;
         }
 
-        if (newInv) void logActivity("invoice", newInv.id, `Facture ${invoiceData.num} — ${invoiceData.client}`, "created", `Statut: ${invoiceData.status} · Montant: ${invoiceData.amount}${invoiceData.due ? ` · Échéance: ${invoiceData.due}` : ""}`);
         toast.success("Facture créée");
       }
 
@@ -563,7 +561,6 @@ export default function Invoices() {
       const { error } = await supabase.from("invoices").delete().eq("id", id);
       if (error) throw error;
       if (invoiceToDelete) {
-        void logActivity("invoice", id, `Facture ${invoiceToDelete.num} — ${invoiceToDelete.client}`, "deleted");
       }
       toast.success("Facture supprimée");
       await fetchInvoices();

@@ -259,12 +259,10 @@ useEffect(() => {
       if (editingClient) {
         const { error } = await supabase.from("clients").update(clientData).eq("id", editingClient.id);
         if (error) throw error;
-        void logActivity("client", editingClient.id, `${clientData.first_name} ${clientData.last_name}`, "updated", `Statut: ${clientData.status}${clientData.domain ? ` · Domaine: ${clientData.domain}` : ""}`);
         toast.success("Client mis à jour avec succès");
       } else {
-        const { data: inserted, error } = await supabase.from("clients").insert([clientData]).select().single();
+        const { error } = await supabase.from("clients").insert([clientData]).select().single();
         if (error) throw error;
-        if (inserted) void logActivity("client", inserted.id, `${clientData.first_name} ${clientData.last_name}`, "created", `Statut: ${clientData.status}${clientData.email ? ` · ${clientData.email}` : ""}`);
         toast.success("Nouveau client ajouté");
       }
       setIsDialogOpen(false);
@@ -283,9 +281,6 @@ useEffect(() => {
       const clientToDelete = clients.find((c) => c.id === id);
       const { error } = await supabase.from("clients").delete().eq("id", id);
       if (error) throw error;
-      if (clientToDelete) {
-        void logActivity("client", id, `${clientToDelete.first_name} ${clientToDelete.last_name}`, "deleted");
-      }
       toast.success("Client supprimé");
       setClients(clients.filter(c => c.id !== id));
     } catch (error) {

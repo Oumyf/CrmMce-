@@ -241,7 +241,6 @@ const Projects = () => {
 
       if (error) throw error;
 
-      void logActivity("project", project.id, project.name, "deleted");
       toast.success("Projet supprimé définitivement");
       fetchData();
 
@@ -423,13 +422,6 @@ const Projects = () => {
         }
       }
 
-      void logActivity(
-        "project",
-        projectId || "unknown",
-        formData.name || "Projet",
-        selectedProject ? "updated" : "created",
-        `Statut: ${formData.status} · Client: ${formData.client_name}${formData.deadline ? ` · Délai: ${new Date(formData.deadline).toLocaleDateString("fr-FR")}` : ""}`
-      );
       toast.success("Opération réussie !");
       setIsDialogOpen(false);
       fetchData();
