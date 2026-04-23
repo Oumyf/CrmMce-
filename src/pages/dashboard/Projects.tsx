@@ -62,7 +62,7 @@ import { toast } from "sonner";
 
 // Interfaces
 interface Profile { id: string; first_name: string; last_name: string; role: string; }
-interface Client { id: string; first_name: string; last_name: string; company: string; status: string; }
+interface Client { id: string; first_name: string; last_name: string; status: string; }
 
 interface Project {
   id: string;
@@ -143,7 +143,7 @@ const Projects = () => {
     // Charge tous les clients — on accepte les deux casses stockées en DB ('Confirmé' / 'confirmé')
     const { data: cls, error: clsError } = await supabase
       .from('clients')
-      .select('id, first_name, last_name, company, status')
+      .select('id, first_name, last_name, status')
       .in('status', ['Confirmé', 'confirmé']);
     if (cls) setConfirmedClients(cls);
     if (clsError) console.error("Erreur Clients:", clsError.message);

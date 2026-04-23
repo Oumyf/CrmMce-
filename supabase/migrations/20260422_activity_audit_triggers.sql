@@ -187,21 +187,21 @@ BEGIN
   v_name := get_current_user_name();
 
   IF TG_OP = 'INSERT' THEN
-    v_details := 'Statut: '   || COALESCE(NEW.status,   '—')
-              || ' · Priorité: ' || COALESCE(NEW.priority, '—')
+    v_details := 'Statut: '      || COALESCE(NEW.status::text,   '—')
+              || ' · Priorité: ' || COALESCE(NEW.priority::text, '—')
               || COALESCE(' · Projet: '      || NULLIF(NEW.project_name, ''), '')
               || COALESCE(' · Responsable: ' || NULLIF(NEW.owner_name,   ''), '');
     INSERT INTO activity_logs(entity_type, entity_id, entity_name, action, details, user_id, user_name)
     VALUES ('task', NEW.id::text, COALESCE(NEW.name, 'Tâche'), 'created', v_details, v_uid, v_name);
 
   ELSIF TG_OP = 'UPDATE' THEN
-    v_details := append_diff(v_details, 'Nom',          OLD.name,          NEW.name);
-    v_details := append_diff(v_details, 'Statut',       OLD.status,        NEW.status);
-    v_details := append_diff(v_details, 'Priorité',     OLD.priority,      NEW.priority);
-    v_details := append_diff(v_details, 'Responsable',  OLD.owner_name,    NEW.owner_name);
-    v_details := append_diff(v_details, 'Échéance',     OLD.end_date::text, NEW.end_date::text);
-    v_details := append_diff(v_details, 'Projet',       OLD.project_name,  NEW.project_name);
-    v_details := append_diff(v_details, 'Description',  OLD.description,   NEW.description);
+    v_details := append_diff(v_details, 'Nom',          OLD.name,              NEW.name);
+    v_details := append_diff(v_details, 'Statut',       OLD.status::text,      NEW.status::text);
+    v_details := append_diff(v_details, 'Priorité',     OLD.priority::text,    NEW.priority::text);
+    v_details := append_diff(v_details, 'Responsable',  OLD.owner_name,        NEW.owner_name);
+    v_details := append_diff(v_details, 'Échéance',     OLD.end_date::text,    NEW.end_date::text);
+    v_details := append_diff(v_details, 'Projet',       OLD.project_name,      NEW.project_name);
+    v_details := append_diff(v_details, 'Description',  OLD.description,       NEW.description);
     IF v_details = '' THEN v_details := 'Informations mises à jour'; END IF;
     INSERT INTO activity_logs(entity_type, entity_id, entity_name, action, details, user_id, user_name)
     VALUES ('task', NEW.id::text, COALESCE(NEW.name, 'Tâche'), 'updated', v_details, v_uid, v_name);
