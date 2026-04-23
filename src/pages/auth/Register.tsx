@@ -121,6 +121,8 @@ const Register = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState("");
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -170,8 +172,6 @@ const Register = () => {
       if (error) throw error;
 
       if (data.user) {
-        // Assure que l'email est bien stocké dans profiles pour les écrans
-        // qui listent les utilisateurs depuis cette table.
         const baseProfile = {
           id: data.user.id,
           first_name: formData.firstName,
@@ -179,8 +179,6 @@ const Register = () => {
           phone: formData.phone,
           role: formData.role,
         };
-
-        let profileSyncError: any = null;
 
         const withEmail = await supabase
           .from("profiles")
@@ -190,22 +188,19 @@ const Register = () => {
           const withUserEmail = await supabase
             .from("profiles")
             .upsert({ ...baseProfile, user_email: formData.email }, { onConflict: "id" });
-
           if (withUserEmail.error) {
-            const fallback = await supabase
-              .from("profiles")
-              .upsert(baseProfile, { onConflict: "id" });
-            profileSyncError = fallback.error;
+            await supabase.from("profiles").upsert(baseProfile, { onConflict: "id" });
           }
         }
 
-        if (profileSyncError) {
-          toast.warning("Compte créé, mais synchronisation profil partielle.");
+        // Si session = null → confirmation email requise (Supabase Email Confirmations activé)
+        if (!data.session) {
+          setRegisteredEmail(formData.email);
+          setEmailSent(true);
+        } else {
+          toast.success("Inscription réussie !");
+          navigate("/dashboard");
         }
-
-        toast.success("Inscription réussie !");
-        // Redirection directe vers le dashboard car confirmation désactivée
-        navigate("/dashboard");
       }
     } catch (error: any) {
       toast.error(error.message || "Une erreur est survenue");
@@ -213,6 +208,48 @@ const Register = () => {
       setIsLoading(false);
     }
   };
+
+  // ── Écran de confirmation email ────────────────────────────────────────────
+  if (emailSent) {
+    return (
+      <div className="min-h-screen flex">
+        <div className="flex-1 flex flex-col justify-center px-6 lg:px-20 py-12">
+          <div className="w-full max-w-md mx-auto text-center space-y-6">
+            <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
+              <svg className="w-10 h-10 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground mb-2">Vérifiez votre email</h1>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                Un lien de confirmation a été envoyé à<br />
+                <span className="font-semibold text-foreground">{registeredEmail}</span>
+              </p>
+            </div>
+            <div className="bg-muted/50 border rounded-xl p-4 text-sm text-muted-foreground text-left space-y-2">
+              <p className="font-medium text-foreground">Comment procéder :</p>
+              <ol className="list-decimal list-inside space-y-1">
+                <li>Ouvrez votre boîte mail</li>
+                <li>Cliquez sur le lien de confirmation de MCE Agency</li>
+                <li>Vous serez redirigé vers votre tableau de bord</li>
+              </ol>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Pas reçu l'email ? Vérifiez vos spams ou{" "}
+              <button onClick={() => setEmailSent(false)} className="text-primary hover:underline font-medium">
+                réessayez avec une autre adresse
+              </button>
+            </p>
+            <Link to="/login" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <ArrowLeft className="w-4 h-4" /> Retour à la connexion
+            </Link>
+          </div>
+        </div>
+        <MCEAgencySection />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex">

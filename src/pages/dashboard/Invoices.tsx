@@ -36,11 +36,14 @@ import {
   History as HistoryIcon,
   Loader2,
   MoreHorizontal,
+  Paperclip,
   Pencil,
   Plus,
   Printer,
   RefreshCw,
   Trash2,
+  Upload,
+  X as XIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -72,6 +75,7 @@ interface Invoice {
   created_at?: string;
   updated_at?: string;
   lines?: InvoiceLine[];
+  attachments?: string[];
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -151,14 +155,31 @@ const InvoiceDocument = ({ inv }: { inv: Invoice }) => {
           borderBottom: "2px solid #0A6EBD",
         }}
       >
-        <div>
-          <div style={{ fontSize: 18, fontWeight: 500, color: "#0A1F44" }}>
-            MCE <span style={{ color: "#00AEEF", fontWeight: 400 }}>Agency</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: 10,
+            background: "linear-gradient(135deg,#00AEEF,#0A6EBD)",
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+          }}>
+            <svg width="28" height="28" viewBox="0 0 40 40" fill="none">
+              {([[20,4],[26,5],[32,9],[36,15],[38,20],[36,25],[32,31],[26,35],[20,36],[14,35],[8,31],[4,25],[2,20],[4,15],[8,9],[14,5]] as [number,number][]).map(([cx,cy],i) => (
+                <circle key={i} cx={cx} cy={cy} r={1.6} fill={i%3===0?"#fff":"rgba(255,255,255,0.6)"} />
+              ))}
+              {([[20,10],[27,13],[30,20],[27,27],[20,30],[13,27],[10,20],[13,13]] as [number,number][]).map(([cx,cy],i) => (
+                <circle key={`i${i}`} cx={cx} cy={cy} r={1.2} fill="rgba(255,255,255,0.8)" />
+              ))}
+              <circle cx={20} cy={20} r={1.8} fill="white" />
+              <text x="20" y="23" textAnchor="middle" fontSize="6.5" fontWeight="bold" fill="#0A6EBD" fontFamily="sans-serif">MCE</text>
+            </svg>
           </div>
-          <div style={{ fontSize: 11, color: "#999", marginTop: 8, lineHeight: 1.8 }}>
-            Dakar, Sénégal<br />
-            contact@mceagency.sn | +221 77 000 00 00<br />
-            NINEA : 12345678 9A2
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "#0A1F44" }}>
+              MCE <span style={{ color: "#00AEEF", fontWeight: 400 }}>Agency</span>
+            </div>
+            <div style={{ fontSize: 11, color: "#999", marginTop: 4, lineHeight: 1.8 }}>
+              Dakar, Sénégal<br />
+              mceproagency@gmail.com | +221 78 183 99 73
+            </div>
           </div>
         </div>
         <div style={{ textAlign: "right" }}>
@@ -345,7 +366,7 @@ const InvoiceDocument = ({ inv }: { inv: Invoice }) => {
           borderTop: "0.5px solid #eee",
         }}
       >
-        MCE Agency · Dakar, Sénégal · contact@mceagency.sn · +221 77 000 00 00<br />
+        MCE Agency · Dakar, Sénégal · mceproagency@gmail.com · +221 78 183 99 73<br />
         Merci pour votre confiance.
       </div>
     </div>
@@ -634,6 +655,36 @@ const handleDownloadPDF = async () => {
     setDownloading(false);
   }
 };
+
+  // ── Upload document (facture passée, PDF, etc.) ──────────────────────────
+  const handleUploadInvoiceDoc = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!selectedInvoice || !e.target.files?.length) return;
+    const file = e.target.files[0];
+    const filePath = `invoices/${selectedInvoice.id}/${Date.now()}-${file.name}`;
+    const { error: uploadError } = await supabase.storage.from("quote-invoice-files").upload(filePath, file);
+    if (uploadError) { toast.error("Erreur upload : " + uploadError.message); return; }
+    const { data: { publicUrl } } = supabase.storage.from("quote-invoice-files").getPublicUrl(filePath);
+    const newAttachments = [...(selectedInvoice.attachments || []), publicUrl];
+    const { error } = await supabase.from("invoices").update({ attachments: newAttachments }).eq("id", selectedInvoice.id);
+    if (error) { toast.error("Erreur sauvegarde"); return; }
+    const updated = { ...selectedInvoice, attachments: newAttachments };
+    setSelectedInvoice(updated);
+    setInvoices(prev => prev.map(inv => inv.id === selectedInvoice.id ? updated : inv));
+    toast.success("Document ajouté");
+    e.target.value = "";
+  };
+
+  const handleDeleteInvoiceDoc = async (url: string) => {
+    if (!selectedInvoice) return;
+    const path = url.split("/quote-invoice-files/")[1];
+    await supabase.storage.from("quote-invoice-files").remove([path]);
+    const newAttachments = (selectedInvoice.attachments || []).filter(a => a !== url);
+    await supabase.from("invoices").update({ attachments: newAttachments }).eq("id", selectedInvoice.id);
+    const updated = { ...selectedInvoice, attachments: newAttachments };
+    setSelectedInvoice(updated);
+    setInvoices(prev => prev.map(inv => inv.id === selectedInvoice.id ? updated : inv));
+    toast.success("Document supprimé");
+  };
 
   const updateLine = (i: number, field: keyof InvoiceLine, value: string | number) => {
     setEditLines((prev) =>
@@ -1057,9 +1108,52 @@ const handleDownloadPDF = async () => {
             </DialogHeader>
 
             {selectedInvoice && (
-              <div ref={printRef}>
-                <InvoiceDocument inv={selectedInvoice} />
-              </div>
+              <>
+                <div ref={printRef}>
+                  <InvoiceDocument inv={selectedInvoice} />
+                </div>
+
+                {/* Section Documents */}
+                <div className="mt-6 border-t pt-4 space-y-3 print:hidden">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                      <Paperclip className="w-4 h-4 text-muted-foreground" />
+                      Documents importés ({selectedInvoice.attachments?.length || 0})
+                    </h3>
+                    <label className="cursor-pointer">
+                      <input type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" className="hidden" onChange={handleUploadInvoiceDoc} />
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors">
+                        <Upload className="w-3.5 h-3.5" /> Importer
+                      </span>
+                    </label>
+                  </div>
+                  {(selectedInvoice.attachments || []).length === 0 ? (
+                    <p className="text-xs text-muted-foreground py-2 text-center border border-dashed rounded-lg">
+                      Aucun document. Importez un PDF de facture passée.
+                    </p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {(selectedInvoice.attachments || []).map((url, idx) => {
+                        const name = decodeURIComponent(url.split("/").pop() || "").replace(/^\d+-/, "");
+                        return (
+                          <div key={idx} className="flex items-center justify-between p-2.5 border rounded-lg bg-card hover:bg-muted/30 transition-colors group">
+                            <a href={url} target="_blank" rel="noreferrer" className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-7 h-7 rounded bg-blue-100 flex items-center justify-center shrink-0">
+                                <FileText className="w-3.5 h-3.5 text-blue-600" />
+                              </div>
+                              <span className="text-sm truncate group-hover:text-primary transition-colors">{name}</span>
+                            </a>
+                            <button onClick={() => handleDeleteInvoiceDoc(url)}
+                              className="text-destructive hover:bg-destructive/10 rounded p-1 shrink-0 ml-2">
+                              <XIcon className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
             )}
           </DialogContent>
         </Dialog>

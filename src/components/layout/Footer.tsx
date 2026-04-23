@@ -74,11 +74,11 @@ export const Footer = () => {
               </div>
               <div className="flex items-center gap-3 text-sm text-slate-400 hover:text-[#00AEEF] transition-colors">
                 <Phone className="w-4 h-4 text-[#00AEEF] flex-shrink-0" />
-                <a href="tel:+221770000000">+221 77 000 00 00</a>
+                <a href="tel:+221781839973">+221 78 183 99 73</a>
               </div>
               <div className="flex items-center gap-3 text-sm text-slate-400 hover:text-[#00AEEF] transition-colors">
                 <Mail className="w-4 h-4 text-[#00AEEF] flex-shrink-0" />
-                <a href="mailto:contact@mceagency.sn">contact@mceagency.sn</a>
+                <a href="mailto:mceproagency@gmail.com">mceproagency@gmail.com</a>
               </div>
             </div>
           </div>

@@ -35,6 +35,8 @@ import {
   Send,
   Download,
   X,
+  Upload,
+  Paperclip,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
@@ -85,6 +87,7 @@ interface Quote {
   website_url?: string;
   created_by?: string;
   country?: string;
+  attachments?: string[];
 }
 
 // ─── Helper : formater une date ISO en DD/MM/YYYY ─────────────────────────────
@@ -157,9 +160,33 @@ const handlePrintPDF = (quote: Quote) => {
     </head>
     <body>
       <div class="header">
-        <div>
-          <div class="company">MCE</div>
-          <div style="color:#64748b;margin-top:4px;">CRM MCE</div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,#00AEEF,#0A6EBD);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <svg width="28" height="28" viewBox="0 0 40 40" fill="none">
+              <circle cx="20" cy="4"  r="1.6" fill="white"/><circle cx="26" cy="5"  r="1.6" fill="rgba(255,255,255,0.6)"/>
+              <circle cx="32" cy="9"  r="1.6" fill="white"/><circle cx="36" cy="15" r="1.6" fill="rgba(255,255,255,0.6)"/>
+              <circle cx="38" cy="20" r="1.6" fill="white"/><circle cx="36" cy="25" r="1.6" fill="rgba(255,255,255,0.6)"/>
+              <circle cx="32" cy="31" r="1.6" fill="white"/><circle cx="26" cy="35" r="1.6" fill="rgba(255,255,255,0.6)"/>
+              <circle cx="20" cy="36" r="1.6" fill="white"/><circle cx="14" cy="35" r="1.6" fill="rgba(255,255,255,0.6)"/>
+              <circle cx="8"  cy="31" r="1.6" fill="white"/><circle cx="4"  cy="25" r="1.6" fill="rgba(255,255,255,0.6)"/>
+              <circle cx="2"  cy="20" r="1.6" fill="white"/><circle cx="4"  cy="15" r="1.6" fill="rgba(255,255,255,0.6)"/>
+              <circle cx="8"  cy="9"  r="1.6" fill="white"/><circle cx="14" cy="5"  r="1.6" fill="rgba(255,255,255,0.6)"/>
+              <circle cx="20" cy="10" r="1.2" fill="rgba(255,255,255,0.8)"/>
+              <circle cx="27" cy="13" r="1.2" fill="rgba(255,255,255,0.8)"/>
+              <circle cx="30" cy="20" r="1.2" fill="rgba(255,255,255,0.8)"/>
+              <circle cx="27" cy="27" r="1.2" fill="rgba(255,255,255,0.8)"/>
+              <circle cx="20" cy="30" r="1.2" fill="rgba(255,255,255,0.8)"/>
+              <circle cx="13" cy="27" r="1.2" fill="rgba(255,255,255,0.8)"/>
+              <circle cx="10" cy="20" r="1.2" fill="rgba(255,255,255,0.8)"/>
+              <circle cx="13" cy="13" r="1.2" fill="rgba(255,255,255,0.8)"/>
+              <circle cx="20" cy="20" r="1.8" fill="white"/>
+              <text x="20" y="23" text-anchor="middle" font-size="6.5" font-weight="bold" fill="#0A6EBD" font-family="sans-serif">MCE</text>
+            </svg>
+          </div>
+          <div>
+            <div class="company">MCE <span style="color:#0A6EBD;font-weight:400;">Agency</span></div>
+            <div style="color:#64748b;margin-top:4px;font-size:11px;">mceproagency@gmail.com · +221 78 183 99 73</div>
+          </div>
         </div>
         <div style="text-align:right;">
           <h2>Devis ${quote.number}</h2>
@@ -450,6 +477,36 @@ const Quotes = () => {
     setSelectedQuote(null);
     setShowDeleteDialog(false);
     toast.success("Devis supprimé");
+  };
+
+  // ── Upload document (PDF passé) ────────────────────────────────────────────
+  const handleUploadDocument = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!selectedQuote || !e.target.files?.length) return;
+    const file = e.target.files[0];
+    const filePath = `quotes/${selectedQuote.id}/${Date.now()}-${file.name}`;
+    const { error: uploadError } = await supabase.storage.from("quote-invoice-files").upload(filePath, file);
+    if (uploadError) { toast.error("Erreur upload : " + uploadError.message); return; }
+    const { data: { publicUrl } } = supabase.storage.from("quote-invoice-files").getPublicUrl(filePath);
+    const newAttachments = [...(selectedQuote.attachments || []), publicUrl];
+    const { error } = await supabase.from("quotes").update({ attachments: newAttachments }).eq("id", selectedQuote.id);
+    if (error) { toast.error("Erreur sauvegarde"); return; }
+    const updated = { ...selectedQuote, attachments: newAttachments };
+    setSelectedQuote(updated);
+    setQuotes(quotes.map(q => q.id === selectedQuote.id ? updated : q));
+    toast.success("Document ajouté");
+    e.target.value = "";
+  };
+
+  const handleDeleteDocument = async (url: string) => {
+    if (!selectedQuote) return;
+    const path = url.split("/quote-invoice-files/")[1];
+    await supabase.storage.from("quote-invoice-files").remove([path]);
+    const newAttachments = (selectedQuote.attachments || []).filter(a => a !== url);
+    await supabase.from("quotes").update({ attachments: newAttachments }).eq("id", selectedQuote.id);
+    const updated = { ...selectedQuote, attachments: newAttachments };
+    setSelectedQuote(updated);
+    setQuotes(quotes.map(q => q.id === selectedQuote.id ? updated : q));
+    toast.success("Document supprimé");
   };
 
   // ── Changer le statut (local uniquement, sauvegarder manuellement) ─────────
@@ -828,6 +885,10 @@ const Quotes = () => {
                   <TabsTrigger value="lines">
                     Lignes ({selectedQuote.items?.length || 0})
                   </TabsTrigger>
+                  <TabsTrigger value="documents" className="gap-1.5">
+                    <Paperclip className="w-3.5 h-3.5" />
+                    Documents ({selectedQuote.attachments?.length || 0})
+                  </TabsTrigger>
                 </TabsList>
 
                 {/* ONGLET DÉTAILS */}
@@ -1106,6 +1167,53 @@ const Quotes = () => {
                       </div>
                     </div>
                   </div>
+                </TabsContent>
+
+                {/* ONGLET DOCUMENTS */}
+                <TabsContent value="documents" className="space-y-4">
+                  <div className="border-2 border-dashed border-muted rounded-lg p-6 text-center">
+                    <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-50" />
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Importer un PDF (devis passé, signé, etc.)
+                    </p>
+                    <label className="cursor-pointer">
+                      <input
+                        type="file"
+                        accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                        className="hidden"
+                        onChange={handleUploadDocument}
+                      />
+                      <span className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors">
+                        <Upload className="w-4 h-4" /> Choisir un fichier
+                      </span>
+                    </label>
+                  </div>
+
+                  {(selectedQuote.attachments || []).length === 0 ? (
+                    <p className="text-center text-sm text-muted-foreground py-4">
+                      Aucun document importé.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {(selectedQuote.attachments || []).map((url, idx) => {
+                        const name = decodeURIComponent(url.split("/").pop() || "").replace(/^\d+-/, "");
+                        return (
+                          <div key={idx} className="flex items-center justify-between p-3 border rounded-lg bg-card hover:bg-muted/30 transition-colors group">
+                            <a href={url} target="_blank" rel="noreferrer" className="flex items-center gap-3 min-w-0">
+                              <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+                                <FileText className="w-4 h-4 text-blue-600" />
+                              </div>
+                              <span className="text-sm font-medium truncate group-hover:text-primary transition-colors">{name}</span>
+                            </a>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10 shrink-0"
+                              onClick={() => handleDeleteDocument(url)}>
+                              <X className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </TabsContent>
               </Tabs>
             </div>
