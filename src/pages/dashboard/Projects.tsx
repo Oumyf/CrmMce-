@@ -107,7 +107,7 @@ const Projects = () => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   // ── Hook centralisé : isAdmin inclut superadmin ───────────────────────────
-  const { profile: userProfile, isAdmin, canDeleteIn } = useProfile();
+  const { isAdmin, canDeleteIn } = useProfile();
 
   useEffect(() => {
     const init = async () => {
@@ -140,10 +140,11 @@ const Projects = () => {
     if (profs) setAvailableProfiles(profs);
     if (profError) console.error("Erreur Profils:", profError.message);
 
+    // Charge tous les clients — on accepte les deux casses stockées en DB ('Confirmé' / 'confirmé')
     const { data: cls, error: clsError } = await supabase
       .from('clients')
-      .select('*')
-      .ilike('status', 'confirmé');
+      .select('id, first_name, last_name, company, status')
+      .in('status', ['Confirmé', 'confirmé']);
     if (cls) setConfirmedClients(cls);
     if (clsError) console.error("Erreur Clients:", clsError.message);
 
