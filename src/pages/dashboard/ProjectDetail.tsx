@@ -204,12 +204,12 @@ const ProjectDetail = () => {
       );
       if (mentioned && mentioned.id !== userProfile.id) {
         await supabase.from("notifications").insert({
-          user_id: mentioned.id,
-          type: "mention",
+          profile_id: mentioned.id,
+          title: "Vous avez été mentionné",
           message: `${userProfile.first_name} ${userProfile.last_name} vous a mentionné dans le projet "${project.name}"`,
-          link: `/dashboard/projects/${project.id}`,
-          read: false,
-        }).throwOnError().catch(() => null); // silently skip if notifications table schema differs
+          project_id: project.id,
+          is_read: false,
+        });
       }
     }
 
