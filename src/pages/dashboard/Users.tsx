@@ -331,7 +331,6 @@ const Users = () => {
                               size="sm"
                               onClick={() => deleteUserSafely(u.id)}
                               disabled={
-                                actingUserId === u.id ||
                                 u.id === profile?.id ||
                                 usersLoading ||
                                 (u.role === "superadmin" && !isSuperAdmin)
