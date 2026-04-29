@@ -445,11 +445,11 @@ const columns: Column<Client>[] = [
             <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4 pt-4">
               <div className="space-y-2">
                 <Label>Prénom</Label>
-                <Input name="first_name" defaultValue={editingClient?.first_name} required />
+                <Input name="first_name" defaultValue={editingClient?.first_name} />
               </div>
               <div className="space-y-2">
                 <Label>Nom</Label>
-                <Input name="last_name" defaultValue={editingClient?.last_name} required />
+                <Input name="last_name" defaultValue={editingClient?.last_name} />
               </div>
               <div className="space-y-2">
                 <Label>Email</Label>

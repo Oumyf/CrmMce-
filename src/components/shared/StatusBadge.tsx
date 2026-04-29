@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 
 export type LeadStatus = "nouveau" | "contacte" | "interesse" | "non_interesse" | "converti";
 export type ClientStatus = "contacte" | "injoignable" | "a_rappeler" | "confirme";
-export type ProjectStatus = "en_attente" | "en_cours" | "termine" | "annule";
+export type ProjectStatus = "en_attente" | "en_cours" | "termine" | "annule" | "abandonne";
 export type TaskStatus = "a_faire" | "en_cours" | "en_attente" | "terminee" | "en_retard";
 export type QuoteStatus = "draft" | "envoye" | "accepte" | "refuse" | "expire";
 
@@ -26,6 +26,7 @@ const statusConfigs: Record<string, StatusConfig> = {
   en_cours: { label: "En cours", className: "bg-info/10 text-info border-info/20" },
   termine: { label: "Terminé", className: "bg-success/10 text-success border-success/20" },
   annule: { label: "Annulé", className: "bg-destructive/10 text-destructive border-destructive/20" },
+  abandonne: { label: "Abandonné", className: "bg-orange-100 text-orange-700 border-orange-200" },
   a_faire: { label: "À faire", className: "bg-muted text-muted-foreground border-muted" },
   terminee: { label: "Terminée", className: "bg-success/10 text-success border-success/20" },
   en_retard: { label: "En retard", className: "bg-destructive/10 text-destructive border-destructive/20" },

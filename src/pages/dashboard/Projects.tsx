@@ -120,16 +120,27 @@ const Projects = () => {
 
   useEffect(() => {
     const projectIdToOpen = searchParams.get('open');
-    
-    if (projectIdToOpen && projects.length > 0) {
+    const projectIdToEdit = searchParams.get('edit');
+
+    if (projects.length === 0) return;
+
+    if (projectIdToOpen) {
       const project = projects.find(p => p.id === projectIdToOpen);
-      
       if (project) {
         setSelectedProject(project);
         setIsDetailsOpen(true);
-        
         const newParams = new URLSearchParams(searchParams);
         newParams.delete('open');
+        setSearchParams(newParams, { replace: true });
+      }
+    }
+
+    if (projectIdToEdit) {
+      const project = projects.find(p => p.id === projectIdToEdit);
+      if (project) {
+        handleEdit(project);
+        const newParams = new URLSearchParams(searchParams);
+        newParams.delete('edit');
         setSearchParams(newParams, { replace: true });
       }
     }
@@ -516,6 +527,7 @@ const Projects = () => {
                 <SelectItem value="en_cours">En cours</SelectItem>
                 <SelectItem value="termine">Terminé</SelectItem>
                 <SelectItem value="en_attente">En attente</SelectItem>
+                <SelectItem value="abandonne">Abandonné</SelectItem>
               </SelectContent>
             </Select>
           }
@@ -597,7 +609,7 @@ const Projects = () => {
 
               <div className="space-y-2">
                 <Label className="text-sm">Deadline (Prévue)</Label>
-                <Input type="date" required value={formData.deadline} onChange={e => setFormData({...formData, deadline: e.target.value})} className="h-10" />
+                <Input type="date" value={formData.deadline} onChange={e => setFormData({...formData, deadline: e.target.value})} className="h-10" />
               </div>
 
               <div className="space-y-2">
@@ -608,6 +620,7 @@ const Projects = () => {
                     <SelectItem value="en_attente">En attente</SelectItem>
                     <SelectItem value="en_cours">En cours</SelectItem>
                     <SelectItem value="termine">Terminé</SelectItem>
+                    <SelectItem value="abandonne">Abandonné</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -938,7 +951,7 @@ const ProjectCard = ({
             )}
           </div>
           <div className="text-xs text-muted-foreground flex items-center gap-1">
-            <Calendar className="w-3 h-3" /> {new Date(project.deadline).toLocaleDateString()}
+            <Calendar className="w-3 h-3" /> {project.deadline ? new Date(project.deadline).toLocaleDateString() : "—"}
           </div>
         </div>
         

@@ -16,7 +16,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
-type ProjectStatus = "en_attente" | "en_cours" | "termine" | "annule";
+type ProjectStatus = "en_attente" | "en_cours" | "termine" | "annule" | "abandonne";
 
 interface Profile { id: string; first_name: string; last_name: string; role: string; }
 interface ProjectMember {
@@ -40,6 +40,7 @@ const STATUS_OPTIONS: { value: ProjectStatus; label: string }[] = [
   { value: "en_cours",   label: "En cours"   },
   { value: "termine",    label: "Terminé"     },
   { value: "annule",     label: "Annulé"      },
+  { value: "abandonne",  label: "Abandonné"   },
 ];
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -206,8 +207,8 @@ const ProjectDetail = () => {
               )}
               {canEdit && (
                 <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs"
-                  onClick={() => navigate(`/dashboard/projects?open=${project.id}`)}>
-                  <Pencil className="w-3.5 h-3.5" /> Modifier
+                  onClick={() => navigate(`/dashboard/projects?edit=${project.id}`)}>
+                  <Pencil className="w-3.5 h-3.5" /> Modifier le projet
                 </Button>
               )}
             </div>

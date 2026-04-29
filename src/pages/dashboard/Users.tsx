@@ -18,10 +18,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { HistoryPanel } from "@/components/shared/HistoryPanel";
 import { useProfile } from "@/hooks/useProfile";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
-import { KeyRound, Search, Trash2, Users2 } from "lucide-react";
+import { History as HistoryIcon, KeyRound, Search, Trash2, Users2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -50,8 +51,8 @@ const Users = () => {
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showDeletedUsers, setShowDeletedUsers] = useState(false);
-  const [actingUserId, setActingUserId] = useState<string | null>(null);
   const [resetLoadingId, setResetLoadingId] = useState<string | null>(null);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   const loadUsers = async () => {
     setUsersLoading(true);
@@ -195,10 +196,15 @@ const Users = () => {
                 Gérez les membres de l'entreprise et consultez les anciens membres.
               </p>
             </div>
-            <Button variant="outline" onClick={loadUsers} className="gap-2">
-              <Users2 className="w-4 h-4" />
-              Actualiser
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setIsHistoryOpen(true)} className="gap-2">
+                <HistoryIcon className="w-4 h-4" /> Historique
+              </Button>
+              <Button variant="outline" onClick={loadUsers} className="gap-2">
+                <Users2 className="w-4 h-4" />
+                Actualiser
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -361,6 +367,13 @@ const Users = () => {
           </CardContent>
         </Card>
       </div>
+
+      <HistoryPanel
+        entityType="profile"
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        title="Historique des utilisateurs"
+      />
     </DashboardLayout>
   );
 };
