@@ -195,16 +195,12 @@ const ProjectDetail = () => {
     }
 
     // Parse @mentions and notify tagged profiles
-    const mentionRegex = /@([A-ZÀ-ÿa-z][\w\u00C0-\u017E]* [A-ZÀ-ÿa-z][\w\u00C0-\u017E]*)/g;
-    let m: RegExpExecArray | null;
-    while ((m = mentionRegex.exec(commentText)) !== null) {
-      const mentionName = m[1];
-      const mentioned = allProfiles.find(
-        p => `${p.first_name} ${p.last_name}`.toLowerCase() === mentionName.toLowerCase()
-      );
-      if (mentioned && mentioned.id !== userProfile.id) {
+    for (const p of allProfiles) {
+      if (p.id === userProfile.id) continue;
+      const fullMention = `@${p.first_name} ${p.last_name}`;
+      if (commentText.includes(fullMention)) {
         await supabase.from("notifications").insert({
-          profile_id: mentioned.id,
+          profile_id: p.id,
           title: "Vous avez été mentionné",
           message: `${userProfile.first_name} ${userProfile.last_name} vous a mentionné dans le projet "${project.name}"`,
           project_id: project.id,
