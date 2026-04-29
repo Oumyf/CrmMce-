@@ -10,9 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/lib/supabase";
 import {
   AlertTriangle, Calendar, CheckCircle2, ChevronRight,
-  FileText, Globe, Loader2, Pencil, Save, Users, X,
+  FileText, Globe, Loader2, MessageSquare, Pencil, Save, Send, Users, X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -33,6 +33,16 @@ interface Project {
 interface Task {
   id: string; name: string; status: string; priority: string;
   end_date?: string; owner_name?: string;
+}
+interface Comment {
+  id: string;
+  project_id: string;
+  author_id: string;
+  author_name: string;
+  content: string;
+  edited_at: string | null;
+  deleted_at: string | null;
+  created_at: string;
 }
 
 const STATUS_OPTIONS: { value: ProjectStatus; label: string }[] = [
@@ -76,6 +86,16 @@ const ProjectDetail = () => {
   const [descDraft, setDescDraft]     = useState("");
   const [saving, setSaving]           = useState(false);
 
+  // Comments
+  const [comments, setComments]               = useState<Comment[]>([]);
+  const [commentText, setCommentText]         = useState("");
+  const [sendingComment, setSendingComment]   = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editCommentText, setEditCommentText] = useState("");
+  const [allProfiles, setAllProfiles]         = useState<Profile[]>([]);
+  const [mentionSearch, setMentionSearch]     = useState<string | null>(null);
+  const commentTextareaRef = useRef<HTMLTextAreaElement>(null);
+
   const isAdmin  = ["admin", "administrateur"].includes(String(userProfile?.role || "").toLowerCase());
   const isMember = project?.project_members?.some((m: any) => m.profile_id === userProfile?.id);
   const canEdit  = isAdmin || !!isMember;
@@ -87,7 +107,12 @@ const ProjectDetail = () => {
         const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
         if (profile) setUserProfile(profile);
       }
-      if (id) await fetchProject(id);
+      const { data: profilesList } = await supabase.from("profiles").select("id, first_name, last_name, role");
+      if (profilesList) setAllProfiles(profilesList);
+      if (id) {
+        await fetchProject(id);
+        await fetchComments(id);
+      }
       setLoading(false);
     };
     init();
@@ -107,6 +132,130 @@ const ProjectDetail = () => {
       .eq("project_id", projectId)
       .order("created_at", { ascending: false });
     setTasks(taskData || []);
+  };
+
+  const fetchComments = async (projectId: string) => {
+    const { data } = await supabase
+      .from("project_comments")
+      .select("*")
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: true });
+    if (data) setComments(data);
+  };
+
+  const handleCommentTextChange = (text: string) => {
+    setCommentText(text);
+    const cursorPos = commentTextareaRef.current?.selectionStart ?? text.length;
+    const beforeCursor = text.slice(0, cursorPos);
+    const match = beforeCursor.match(/@([^\s]*)$/);
+    setMentionSearch(match ? match[1] : null);
+  };
+
+  const insertMention = (profile: Profile) => {
+    const cursorPos = commentTextareaRef.current?.selectionStart ?? commentText.length;
+    const beforeCursor = commentText.slice(0, cursorPos);
+    const afterCursor = commentText.slice(cursorPos);
+    const match = beforeCursor.match(/@([^\s]*)$/);
+    if (match) {
+      const newBefore = beforeCursor.slice(0, -match[0].length) + `@${profile.first_name} ${profile.last_name} `;
+      setCommentText(newBefore + afterCursor);
+    }
+    setMentionSearch(null);
+    setTimeout(() => commentTextareaRef.current?.focus(), 0);
+  };
+
+  const filteredMentionProfiles = mentionSearch !== null
+    ? allProfiles
+        .filter(p => {
+          const full = `${p.first_name} ${p.last_name}`.toLowerCase();
+          return full.includes(mentionSearch.toLowerCase());
+        })
+        .slice(0, 5)
+    : [];
+
+  const handleSendComment = async () => {
+    if (!commentText.trim() || !userProfile || !project) return;
+    setSendingComment(true);
+
+    const { data: newComment, error } = await supabase
+      .from("project_comments")
+      .insert({
+        project_id: project.id,
+        author_id: userProfile.id,
+        author_name: `${userProfile.first_name} ${userProfile.last_name}`,
+        content: commentText.trim(),
+      })
+      .select()
+      .single();
+
+    if (error) {
+      toast.error("Erreur lors de l'envoi du commentaire");
+      setSendingComment(false);
+      return;
+    }
+
+    // Parse @mentions and notify tagged profiles
+    const mentionRegex = /@([A-ZÀ-ÿa-z][\w\u00C0-\u017E]* [A-ZÀ-ÿa-z][\w\u00C0-\u017E]*)/g;
+    let m: RegExpExecArray | null;
+    while ((m = mentionRegex.exec(commentText)) !== null) {
+      const mentionName = m[1];
+      const mentioned = allProfiles.find(
+        p => `${p.first_name} ${p.last_name}`.toLowerCase() === mentionName.toLowerCase()
+      );
+      if (mentioned && mentioned.id !== userProfile.id) {
+        await supabase.from("notifications").insert({
+          user_id: mentioned.id,
+          type: "mention",
+          message: `${userProfile.first_name} ${userProfile.last_name} vous a mentionné dans le projet "${project.name}"`,
+          link: `/dashboard/projects/${project.id}`,
+          read: false,
+        }).throwOnError().catch(() => null); // silently skip if notifications table schema differs
+      }
+    }
+
+    if (newComment) setComments(prev => [...prev, newComment as Comment]);
+    setCommentText("");
+    setMentionSearch(null);
+    setSendingComment(false);
+  };
+
+  const handleEditComment = async (commentId: string) => {
+    if (!editCommentText.trim()) return;
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from("project_comments")
+      .update({ content: editCommentText.trim(), edited_at: now })
+      .eq("id", commentId);
+    if (error) { toast.error("Erreur lors de la modification"); return; }
+    setComments(prev =>
+      prev.map(c => c.id === commentId ? { ...c, content: editCommentText.trim(), edited_at: now } : c)
+    );
+    setEditingCommentId(null);
+    setEditCommentText("");
+    toast.success("Commentaire modifié");
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from("project_comments")
+      .update({ deleted_at: now })
+      .eq("id", commentId);
+    if (error) { toast.error("Erreur lors de la suppression"); return; }
+    setComments(prev =>
+      prev.map(c => c.id === commentId ? { ...c, deleted_at: now } : c)
+    );
+  };
+
+  const renderCommentContent = (content: string) => {
+    const parts = content.split(/(@[\w\u00C0-\u017E]+ [\w\u00C0-\u017E]+)/g);
+    return parts.map((part, i) =>
+      part.startsWith("@") ? (
+        <span key={i} className="text-primary font-medium">{part}</span>
+      ) : (
+        <span key={i}>{part}</span>
+      )
+    );
   };
 
   const handleStatusChange = async (newStatus: ProjectStatus) => {
@@ -273,9 +422,10 @@ const ProjectDetail = () => {
             <Tabs defaultValue="tasks">
               <TabsList className="w-full justify-start border-b rounded-none bg-transparent px-0 h-auto gap-1 flex-wrap">
                 {[
-                  { value: "tasks",  label: "Tâches",   count: tasks.length },
-                  { value: "files",  label: "Fichiers", count: project.attachments?.length || 0 },
-                  { value: "notes",  label: "Notes",    count: null },
+                  { value: "tasks",    label: "Tâches",        count: tasks.length },
+                  { value: "files",    label: "Fichiers",       count: project.attachments?.length || 0 },
+                  { value: "notes",    label: "Notes",          count: null },
+                  { value: "comments", label: "Commentaires",   count: comments.filter(c => !c.deleted_at).length },
                 ].map(tab => (
                   <TabsTrigger
                     key={tab.value}
@@ -397,6 +547,141 @@ const ProjectDetail = () => {
                     </div>
                   )}
                 </div>
+              </TabsContent>
+
+              {/* COMMENTAIRES */}
+              <TabsContent value="comments" className="mt-4 space-y-4">
+                {/* Liste des messages */}
+                <div className="space-y-3">
+                  {comments.length === 0 ? (
+                    <div className="text-center py-14 text-muted-foreground text-sm border rounded-xl bg-card">
+                      <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                      Aucun commentaire pour l'instant. Soyez le premier à laisser un message !
+                    </div>
+                  ) : (
+                    comments.map((comment) => {
+                      const isOwn = comment.author_id === userProfile?.id;
+                      const initials = comment.author_name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
+                      return (
+                        <div key={comment.id} className="flex gap-3 group">
+                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary uppercase shrink-0 mt-0.5">
+                            {initials}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-baseline gap-2 flex-wrap">
+                              <span className="text-sm font-semibold">{comment.author_name}</span>
+                              <span className="text-[11px] text-muted-foreground">
+                                {new Date(comment.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                              {comment.edited_at && !comment.deleted_at && (
+                                <span className="text-[10px] text-muted-foreground italic">
+                                  · modifié le {new Date(comment.edited_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                                </span>
+                              )}
+                            </div>
+
+                            {comment.deleted_at ? (
+                              <p className="text-sm text-muted-foreground italic mt-1">[Message supprimé]</p>
+                            ) : editingCommentId === comment.id ? (
+                              <div className="mt-2 space-y-2">
+                                <Textarea
+                                  value={editCommentText}
+                                  onChange={(e) => setEditCommentText(e.target.value)}
+                                  rows={3}
+                                  className="text-sm resize-none"
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleEditComment(comment.id);
+                                    if (e.key === "Escape") { setEditingCommentId(null); setEditCommentText(""); }
+                                  }}
+                                />
+                                <div className="flex gap-2">
+                                  <Button size="sm" className="h-7 gap-1.5 text-xs" onClick={() => handleEditComment(comment.id)}>
+                                    <Save className="w-3 h-3" /> Sauvegarder
+                                  </Button>
+                                  <Button size="sm" variant="ghost" className="h-7 text-xs"
+                                    onClick={() => { setEditingCommentId(null); setEditCommentText(""); }}>
+                                    Annuler
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-sm mt-1 whitespace-pre-wrap leading-relaxed">
+                                {renderCommentContent(comment.content)}
+                              </p>
+                            )}
+
+                            {/* Actions */}
+                            {isOwn && !comment.deleted_at && editingCommentId !== comment.id && (
+                              <div className="flex gap-1 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  className="text-[11px] text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-muted"
+                                  onClick={() => { setEditingCommentId(comment.id); setEditCommentText(comment.content); }}
+                                >
+                                  Modifier
+                                </button>
+                                <button
+                                  className="text-[11px] text-muted-foreground hover:text-destructive transition-colors px-1.5 py-0.5 rounded hover:bg-destructive/10"
+                                  onClick={() => handleDeleteComment(comment.id)}
+                                >
+                                  Supprimer
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Zone de saisie */}
+                {userProfile && (
+                  <div className="border rounded-xl bg-card p-4 space-y-3">
+                    <div className="flex gap-3">
+                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary uppercase shrink-0 mt-0.5">
+                        {`${userProfile.first_name?.[0] ?? ""}${userProfile.last_name?.[0] ?? ""}`.toUpperCase()}
+                      </div>
+                      <div className="flex-1 relative">
+                        <Textarea
+                          ref={commentTextareaRef}
+                          value={commentText}
+                          onChange={(e) => handleCommentTextChange(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleSendComment();
+                          }}
+                          placeholder="Écrivez un commentaire... Utilisez @ pour mentionner quelqu'un"
+                          rows={3}
+                          className="text-sm resize-none"
+                        />
+                        {/* Dropdown @mention */}
+                        {mentionSearch !== null && filteredMentionProfiles.length > 0 && (
+                          <div className="absolute bottom-full mb-1 left-0 z-50 bg-popover border rounded-lg shadow-lg overflow-hidden w-56">
+                            {filteredMentionProfiles.map(p => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center gap-2 transition-colors"
+                                onMouseDown={(e) => { e.preventDefault(); insertMention(p); }}
+                              >
+                                <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-[9px] font-bold text-primary uppercase shrink-0">
+                                  {p.first_name[0]}{p.last_name[0]}
+                                </div>
+                                {p.first_name} {p.last_name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between pl-11">
+                      <p className="text-[11px] text-muted-foreground">Ctrl+Entrée pour envoyer · @nom pour mentionner</p>
+                      <Button size="sm" className="gap-1.5 h-8" onClick={handleSendComment} disabled={sendingComment || !commentText.trim()}>
+                        {sendingComment ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                        Envoyer
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </TabsContent>
             </Tabs>
           </div>
