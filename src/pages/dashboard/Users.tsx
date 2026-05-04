@@ -235,6 +235,7 @@ const Users = () => {
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="commercial">Commercial</SelectItem>
                   <SelectItem value="developer">Développeur</SelectItem>
+                  <SelectItem value="community_manager">Community Manager</SelectItem>
                 </SelectContent>
               </Select>
 

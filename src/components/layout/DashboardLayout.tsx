@@ -39,6 +39,8 @@ const navItems: NavItem[] = [
   { icon: <FileText      className="w-5 h-5" />, label: "Devis",              href: "/dashboard/quotes",      adminOnly: true },
   { icon: <FileText      className="w-5 h-5" />, label: "Factures",           href: "/dashboard/invoices",    adminOnly: true },
   { icon: <UserPlus      className="w-5 h-5" />, label: "Recrutement",        href: "/dashboard/recruitment", adminOnly: true },
+  { icon: <Users         className="w-5 h-5" />, label: "Utilisateurs",       href: "/dashboard/users",       adminOnly: true },
+  { icon: <Settings      className="w-5 h-5" />, label: "Paramètres",         href: "/dashboard/settings" },
 ];
 
 // ─── MCE Logo — clés uniques garanties ──────────────────────────────────────
@@ -97,7 +99,7 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
   );
 
   const handleNotificationRedirect = (projectId: string) => {
-    navigate(`/dashboard/projects?open=${projectId}`);
+    navigate(`/dashboard/projects/${projectId}?tab=comments`);
   };
 
   const handleSignOut = async () => {
@@ -172,27 +174,6 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
               {!collapsed && <span>{item.label}</span>}
             </Link>
           ))}
-        </nav>
-
-        {/* Footer sidebar */}
-        <div className="p-3 border-t border-sidebar-border space-y-1">
-          {/* Lien Utilisateurs — visible seulement quand admin confirmé et chargé */}
-          {!loading && isAdmin && (
-            <Link
-              to="/dashboard/users"
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
-            >
-              <Users className="w-5 h-5" />
-              {!collapsed && <span>Utilisateurs</span>}
-            </Link>
-          )}
-          <Link
-            to="/dashboard/settings"
-            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
-          >
-            <Settings className="w-5 h-5" />
-            {!collapsed && <span>Paramètres</span>}
-          </Link>
           <button
             onClick={handleSignOut}
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium w-full text-destructive hover:bg-destructive/10 transition-colors"
@@ -200,7 +181,7 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
             <LogOut className="w-5 h-5" />
             {!collapsed && <span>Déconnexion</span>}
           </button>
-        </div>
+        </nav>
       </aside>
 
       {/* Contenu principal */}

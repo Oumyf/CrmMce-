@@ -13,7 +13,7 @@ import {
   FileText, Globe, Loader2, MessageSquare, Pencil, Save, Send, Users, X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
 type ProjectStatus = "en_attente" | "en_cours" | "termine" | "annule" | "abandonne";
@@ -77,6 +77,8 @@ const getFileName = (url: string) => {
 const ProjectDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const defaultTab = searchParams.get("tab") || "tasks";
 
   const [project, setProject]         = useState<Project | null>(null);
   const [tasks, setTasks]             = useState<Task[]>([]);
@@ -196,24 +198,16 @@ const ProjectDetail = () => {
 
     // Parse @mentions and notify tagged profiles
     const text = commentText.trim();
-    console.log("[Comments] allProfiles loaded:", allProfiles.length, "| text:", text);
     for (const p of allProfiles) {
       if (p.id === userProfile.id) continue;
       const fullMention = `@${p.first_name} ${p.last_name}`;
-      console.log("[Comments] checking mention:", fullMention, "| found:", text.includes(fullMention));
       if (text.includes(fullMention)) {
-        const { error: notifError } = await supabase.from("notifications").insert({
+        await supabase.from("notifications").insert({
           profile_id: p.id,
           title: "Vous avez été mentionné",
           message: `${userProfile.first_name} ${userProfile.last_name} vous a mentionné dans le projet "${project.name}"`,
           project_id: project.id,
         });
-        if (notifError) {
-          console.error("[Comments] notification insert error:", notifError);
-          toast.error("Erreur notification : " + notifError.message);
-        } else {
-          console.log("[Comments] notification sent to:", fullMention);
-        }
       }
     }
 
@@ -423,7 +417,7 @@ const ProjectDetail = () => {
 
           {/* Tabs */}
           <div className="lg:col-span-2">
-            <Tabs defaultValue="tasks">
+            <Tabs defaultValue={defaultTab}>
               <TabsList className="w-full justify-start border-b rounded-none bg-transparent px-0 h-auto gap-1 flex-wrap">
                 {[
                   { value: "tasks",    label: "Tâches",        count: tasks.length },

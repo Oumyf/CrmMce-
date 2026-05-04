@@ -94,6 +94,7 @@ const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 const [selectedClientDetails, setSelectedClientDetails] = useState<Client | null>(null);
 const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+const [formErrors, setFormErrors] = useState<{ email?: string; phone?: string }>({});
 const fetchClients = async () => {
   try {
     setLoading(true);
@@ -234,6 +235,19 @@ useEffect(() => {
     e.preventDefault();
     setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
+
+    const emailVal = (formData.get("email") as string || "").trim();
+    const phoneVal = (formData.get("phone") as string || "").trim();
+    const errors: { email?: string; phone?: string } = {};
+    if (!emailVal) errors.email = "L'email est obligatoire";
+    if (!phoneVal || phoneVal === countryPrefixes[formCountry]) errors.phone = "Le téléphone est obligatoire";
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      setIsSubmitting(false);
+      return;
+    }
+    setFormErrors({});
+
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
@@ -278,11 +292,18 @@ useEffect(() => {
   const handleDelete = async (id: string) => {
     if (!confirm("Êtes-vous sûr de vouloir supprimer ce client ?")) return;
     try {
-      const clientToDelete = clients.find((c) => c.id === id);
-      const { error } = await supabase.from("clients").delete().eq("id", id);
+      const { data: deleted, error } = await supabase
+        .from("clients")
+        .delete()
+        .eq("id", id)
+        .select("id");
       if (error) throw error;
+      if (!deleted || deleted.length === 0) {
+        toast.error("Suppression refusée : droits insuffisants.");
+        return;
+      }
       toast.success("Client supprimé");
-      setClients(clients.filter(c => c.id !== id));
+      setClients(prev => prev.filter(c => c.id !== id));
     } catch (error) {
       toast.error("Erreur lors de la suppression");
     }
@@ -453,7 +474,14 @@ const columns: Column<Client>[] = [
               </div>
               <div className="space-y-2">
                 <Label>Email</Label>
-                <Input name="email" type="email" defaultValue={editingClient?.email} required />
+                <Input
+                  name="email"
+                  type="email"
+                  defaultValue={editingClient?.email}
+                  onChange={() => setFormErrors(prev => ({ ...prev, email: undefined }))}
+                  className={formErrors.email ? "border-destructive focus-visible:ring-destructive" : ""}
+                />
+                {formErrors.email && <p className="text-xs text-destructive">{formErrors.email}</p>}
               </div>
 
               <div className="space-y-2">
@@ -477,12 +505,14 @@ const columns: Column<Client>[] = [
 
               <div className="space-y-2">
                 <Label>Téléphone</Label>
-                <Input 
-                  name="phone" 
+                <Input
+                  name="phone"
                   key={formCountry}
-                  defaultValue={editingClient?.phone || countryPrefixes[formCountry]} 
-                  required
+                  defaultValue={editingClient?.phone || countryPrefixes[formCountry]}
+                  onChange={() => setFormErrors(prev => ({ ...prev, phone: undefined }))}
+                  className={formErrors.phone ? "border-destructive focus-visible:ring-destructive" : ""}
                 />
+                {formErrors.phone && <p className="text-xs text-destructive">{formErrors.phone}</p>}
               </div>
 
               <div className="space-y-2">

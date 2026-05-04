@@ -57,7 +57,7 @@ import {
   X
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
 // Interfaces
@@ -148,7 +148,7 @@ const Projects = () => {
 
   const fetchData = async () => {
     const { data: profs, error: profError } = await supabase.from('profiles').select('*');
-    if (profs) setAvailableProfiles(profs);
+    if (profs) setAvailableProfiles(profs.filter((p: any) => p.role !== 'deleted'));
     if (profError) console.error("Erreur Profils:", profError.message);
 
     const { data: cls, error: clsError } = await supabase
@@ -203,7 +203,7 @@ const Projects = () => {
     country: "Sénégal"
   });
 
-  const [formErrors, setFormErrors] = useState<{ name?: string; client?: string; created_at?: string }>({});
+  const [formErrors, setFormErrors] = useState<{ name?: string; client?: string; created_at?: string; [key: string]: string | undefined }>({});
 
   const filteredProjects = projects.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -959,7 +959,9 @@ const ProjectCard = ({
             <Globe className="w-3 h-3 text-muted-foreground" />
             <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{project.country}</span>
           </div>
-          <h3 className="font-bold text-sm sm:text-lg line-clamp-2">{project.name}</h3>
+          <Link to={`/dashboard/projects/${project.id}`} className="hover:text-primary transition-colors">
+            <h3 className="font-bold text-sm sm:text-lg line-clamp-2">{project.name}</h3>
+          </Link>
           <p className="text-xs sm:text-sm text-muted-foreground mt-1 line-clamp-1">{project.client_name}</p>
         </div>
         

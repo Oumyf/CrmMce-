@@ -10,8 +10,8 @@ export type AppModule =
 
 const deletePermissions: Record<string, AppModule[]> = {
   superadmin: ["clients","leads","projects","tasks","collaboration","quotes","invoices","recruitment"],
-  admin: ["quotes", "invoices", "recruitment"],
-  administrateur: ["quotes", "invoices", "recruitment"],
+  admin: ["projects", "quotes", "invoices", "recruitment"],
+  administrateur: ["projects", "quotes", "invoices", "recruitment"],
 };
 
 export function canDelete(role: string | null | undefined, module: AppModule): boolean {
