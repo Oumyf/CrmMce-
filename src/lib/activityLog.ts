@@ -6,7 +6,8 @@ export type EntityType =
   | "task"
   | "quote"
   | "invoice"
-  | "recruitment";
+  | "recruitment"
+  | "profile";
 
 export type ActionType = "created" | "updated" | "deleted";
 

@@ -82,6 +82,18 @@ const MCELogo = ({ size = 32 }: { size?: number }) => (
   </svg>
 );
 
+const ROLE_LABELS: Record<string, string> = {
+  superadmin:        "Super Admin",
+  admin:             "Admin",
+  administrateur:    "Administrateur",
+  commercial:        "Commercial",
+  developer:         "Développeur",
+  community_manager: "Community Manager",
+};
+
+export const formatRole = (role: string | null | undefined): string =>
+  ROLE_LABELS[String(role || "").toLowerCase()] ?? (role || "—");
+
 // ─── DashboardLayout ──────────────────────────────────────────────────────────
 export const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   const [collapsed, setCollapsed] = useState(false);
@@ -226,7 +238,7 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
                       {profile?.first_name} {profile?.last_name}
                     </p>
                     <p className="text-[10px] text-muted-foreground uppercase font-bold mt-1 tracking-wider">
-                      {profile?.role === "superadmin" ? "Super Admin" : profile?.role}
+                      {formatRole(profile?.role)}
                     </p>
                   </div>
                   <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20 shadow-sm">

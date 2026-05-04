@@ -1,4 +1,4 @@
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { DashboardLayout, formatRole } from "@/components/layout/DashboardLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -171,7 +171,7 @@ const Users = () => {
 
     setResetLoadingId(targetId);
     try {
-      const { data, error } = await supabase.functions.invoke("send-password-reset", {
+      const { error } = await supabase.functions.invoke("send-password-reset", {
         body: { email: targetEmail },
       });
 
@@ -300,7 +300,7 @@ const Users = () => {
                             u.role === "superadmin" && "border-amber-500 text-amber-600 bg-amber-50"
                           )}
                         >
-                          {u.role === "superadmin" ? "Super Admin" : u.role || "-"}
+                          {formatRole(u.role)}
                         </Badge>
                       </TableCell>
                       <TableCell>
